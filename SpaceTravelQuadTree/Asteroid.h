@@ -14,6 +14,9 @@ public:
    Asteroid();
    Asteroid(float x, float y, float z, float r, unsigned char valueR, 
 	    	unsigned char valueG, unsigned char valueB);
+	
+	// convert to component position (x,y,z)
+	// convert to component radius (x, y, z)
    float getCenterX() { return centerX; }
    float getCenterY() { return centerY; }
    float getCenterZ() { return centerZ; }

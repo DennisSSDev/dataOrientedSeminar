@@ -24,9 +24,6 @@
     <ClCompile Include="Asteroid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="intersectionDetectionRoutines.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="InitShader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

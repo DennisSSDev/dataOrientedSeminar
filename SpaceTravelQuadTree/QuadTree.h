@@ -2,15 +2,20 @@
 #define QuadTree_239847
 
 #include <vector>
+#include <unordered_set>
 #include "Asteroid.h"
 
 using namespace std;
+
+static std::unordered_set<float> x_set;
+static std::unordered_set<float> z_set;
 
 // Quadtree node class.
 class QuadtreeNode
 {
 public:
    QuadtreeNode(float x, float z, float s);
+	
    int numberAsteroidsIntersected(); // Return the number of asteroids intersecting the square.
 
    void build(); // Recursive routine to split a square that intersects more than one asteroid; 
@@ -56,6 +61,7 @@ public:
    }
 
 private:
+	
    QuadtreeNode *header;
    int length;
    Asteroid *arrayAsteroids = nullptr; // Global array of asteroids.

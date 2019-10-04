@@ -331,7 +331,7 @@ void setup(void)
 	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
 
 
-	Asteroid* arr = new Asteroid[ROWS*COLUMNS]; // new data needs to be deleted
+	const auto arr = new Asteroid[ROWS*COLUMNS]; // new data needs to be deleted
 
 	glm::uint count = 0;
 	for (i = 0; i < COLUMNS; i++)

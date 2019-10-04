@@ -25,15 +25,24 @@ int QuadtreeNode::numberAsteroidsIntersected()
 	// changed the iteration to be column row major
 	for (int i = 0; i < length; i++)
 	{
-		if (arrayAsteroids[i].getRadius() > 0.f)
+		const float& radius = arrayAsteroids[i].getRadius();
+		if (radius > 0.f)
    		{
-   			if ( checkDiscRectangleIntersection( SWCornerX, SWCornerZ, SWCornerX+size, SWCornerZ-size,
-					arrayAsteroids[i].getCenterX(), arrayAsteroids[i].getCenterZ(), 
-					arrayAsteroids[i].getRadius() )
+			
+			const float& c_x = arrayAsteroids[i].getCenterX();
+			const float& c_z = arrayAsteroids[i].getCenterZ();
+			/*
+			if(x_set.find(c_x) != x_set.end() && z_set.find(c_z) != z_set.end())
+			{
+				continue;
+			}
+			*/
+			if (checkDiscRectangleIntersection( SWCornerX, SWCornerZ, SWCornerX + size, SWCornerZ - size,
+					c_x, c_z, radius )
 				)
    			{
    				asteroidList.emplace_back(Asteroid(arrayAsteroids[i])); 
-				numVal++;
+				++numVal;
    			}
    		}
 	}
@@ -51,25 +60,36 @@ void QuadtreeNode::build()
 	{
 		Asteroid *arr = asteroidList.data(); // why give the whole thing down to the other branches? only bother with the ones that intersected
 		
-		SWChild = new QuadtreeNode(SWCornerX, SWCornerZ, size / 2.f);
+		const float halfSize = size / 2.f;
+		const float cornerHalfSize = SWCornerZ - size / 2.f;
+		const float otherCornerHalfSize = SWCornerX + size / 2.f;
+		
+		SWChild = new QuadtreeNode(SWCornerX, SWCornerZ, halfSize);
 		SWChild->setLength(length);
 		SWChild->setArray(arr);
 
-		NWChild = new QuadtreeNode(SWCornerX, SWCornerZ - size / 2.f, size / 2.f);
+		NWChild = new QuadtreeNode(SWCornerX, cornerHalfSize, halfSize);
 		NWChild->setLength(length);
 		NWChild->setArray(arr);
 
-		NEChild = new QuadtreeNode(SWCornerX + size / 2.f, SWCornerZ - size / 2.f, size / 2.f);
+		NEChild = new QuadtreeNode(otherCornerHalfSize, cornerHalfSize, halfSize);
 		NEChild->setLength(length);
 		NEChild->setArray(arr);
 
-		SEChild = new QuadtreeNode(SWCornerX + size / 2.f, SWCornerZ, size / 2.f);
+		SEChild = new QuadtreeNode(otherCornerHalfSize, SWCornerZ, halfSize);
 		SEChild->setLength(length);
 		SEChild->setArray(arr);
 
 		// can be even further optimized by hashing asteroids that ended up at the very end (1) so that no recalc needs to happen
 		SWChild->build(); NWChild->build(); NEChild->build(); SEChild->build(); 
 	}
+	/*
+	if( length != 0)
+	{
+		x_set.emplace(asteroidList[0].getCenterX());
+		z_set.emplace(asteroidList[0].getCenterZ());
+	}
+	*/
 }
 
 // Recursive routine to draw the asteroids in a square's list if the square is a

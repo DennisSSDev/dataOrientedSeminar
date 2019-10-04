@@ -267,8 +267,7 @@ void setup(void)
     }
 
     // create the quad tree for the asteroids
-    asteroidsQuadtree.setRowsCols(ROWS, COLUMNS);
-    asteroidsQuadtree.setArray(arrayAsteroids);
+    asteroidsQuadtree.setLength(ROWS*COLUMNS);
 
     // create the line for the middle of the screen
     points[line_index].x = 0;
@@ -281,7 +280,8 @@ void setup(void)
     // create the cone for a spaceship
     const glm::vec3 direction( 0, 1, 0 );
     const glm::vec3 apex(0, 10, 0);
-	
+
+	// no need to optimize, has low impact as only 1 cone is ever created
     CreateCone(direction, apex, 10, 5, 10, cone_index);
 
     // create where the spheres are going in the field   
@@ -329,6 +329,21 @@ void setup(void)
 	// Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
 	if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
 	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
+
+
+	Asteroid* arr = new Asteroid[ROWS*COLUMNS]; // new data needs to be deleted
+
+	glm::uint count = 0;
+	for (i = 0; i < COLUMNS; i++)
+	{
+		for (j = 0; j < ROWS; j++)
+		{
+			arr[count] = arrayAsteroids[i][j];
+			++count;
+		}
+	}
+	
+    asteroidsQuadtree.setArray(arr);
 
 	asteroidsQuadtree.initialize( -initialSize / 2.0f, -37.0f, initialSize );
 	// END OF OPTIMIZATIONS HERE
@@ -379,11 +394,10 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 // Collision detection is approximate as instead of the spacecraft we use a bounding sphere.
 int asteroidCraftCollision( float x, float z, float a)
 {
-   int i, j;
-
+	// todo: use the QuadTree maybe???
    // Check for collision with each asteroid.
-   for (j=0; j<COLUMNS; j++)
-      for (i=0; i<ROWS; i++)
+   for (int i = 0; i < COLUMNS; i++)
+      for (int j = 0; j < ROWS; j++)
 		 if (arrayAsteroids[i][j].getRadius() > 0 ) // If asteroid exists.
             if ( checkSpheresIntersection( x - 5 * sin( (PI/180.0) * a), 0.0, 
 		         z - 5 * cos( (PI/180.0) * a), 7.072, 
@@ -479,34 +493,24 @@ void drawScene(void)
    // Begin left viewport.
    glViewport (0, 0, width/2.0,  height); 
    glLoadIdentity();
-   
-   // Write text in isolated (i.e., before gluLookAt) translate block.
-   // DOES NOT WORK WITHOUT GLUT 
-   //glPushMatrix();
-   //glColor3f(1.0, 1.0, 1.0);
-   //glRasterPos3f(5.0, 25.0, -30.0);
-   //if (isFrustumCulled) writeBitmapString((void*)font, "Frustum culling on!");
-   //else writeBitmapString((void*)font, "Frustum culling off!");
-   //glColor3f(1.0, 0.0, 0.0);
-   //glRasterPos3f(-28.0, 25.0, -30.0);
-   //if (isCollision) writeBitmapString((void*)font, "Cannot - will crash!");
-   //glPopMatrix();
+
    
    // Fixed camera 
-   lookAt(0.0, 10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+   lookAt(0.f, 10.f, 20.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f);
 
    if (!isFrustumCulled)
    {
-	   // Draw all the asteroids in arrayAsteroids.
-	   for (j = 0; j<COLUMNS; j++)
-         for (i=0; i<ROWS; i++)
-		   arrayAsteroids[i][j].draw();
+	// Draw all the asteroids in arrayAsteroids.
+	// change to column major
+   	for (i = 0; i < COLUMNS; i++)
+		for (j = 0; j < ROWS; j++)
+			arrayAsteroids[i][j].draw();
    }
    else
    {
 	   // Draw only asteroids in leaf squares of the quadtree that intersect the fixed frustum
 	   // with apex at the origin.
-	   asteroidsQuadtree.drawAsteroids(-5.0, -5.0, -250.0, -250.0, 250.0, -250.0, 5.0, -5.0);
+	   asteroidsQuadtree.drawAsteroids(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f);
    }
 
    // off is white spaceship and on it red
@@ -521,7 +525,7 @@ void drawScene(void)
    glRotatef(angle, 0.0, 1.0, 0.0);
 
    glPushMatrix();
-   glRotatef(-90.0, 1.0, 0.0, 0.0); // To make the spacecraft point down the $z$-axis initially.
+   glRotatef(-90.f, 1.f, 0.f, 0.f); // To make the spacecraft point down the $z$-axis initially.
 
    // Turn on wireframe mode
    glPolygonMode(GL_FRONT, GL_LINE);
@@ -533,32 +537,24 @@ void drawScene(void)
    glPopMatrix();
    // End left viewport.
    
-   // Begin right viewport.
-   glViewport(width/2.0, 0, width/2.0, height);
+	// Begin right viewport.
+	//=====================================
+	//
+	//
+   glViewport(width / 2.0, 0, width / 2.0, height);
    glLoadIdentity();
-
-   // Write text in isolated (i.e., before gluLookAt) translate block.
-   // DOES NOT WORK WITHOUT GLUT
-   //glPushMatrix();
-   //glColor3f(1.0, 1.0, 1.0);
-   //glRasterPos3f(5.0, 25.0, -30.0);
-   //if (isFrustumCulled)  writeBitmapString((void*)font, "Frustum culling on.");
-   //else writeBitmapString((void*)font, "Frustum culling off.");
-   //glColor3f(1.0, 0.0, 0.0);
-   //glRasterPos3f(-28.0, 25.0, -30.0);
-   //if (isCollision)  writeBitmapString((void*)font, "Cannot - will crash!");
-   //glPopMatrix();
 
    // draw the line in the middle to separate the two viewports
    glPushMatrix();
-   glTranslatef(-6, 0, 0);
-   glColor3f(1.0, 1.0, 1.0);
+   glTranslatef(-6.f, 0.f, 0.f);
+   glColor3f(1.f, 1.f, 1.f);
    glLineWidth(2.0);
    glDrawArrays(GL_LINE_STRIP, line_index, LINE_VERTEX_COUNT);
    glLineWidth(1.0);
    glPopMatrix();
 
    // Locate the camera at the tip of the cone and pointing in the direction of the cone.
+	// todo: this is constantly recalculated - cache it
    lookAt(xVal - 10 * sin( (PI/180.0) * angle), 
 	         0.0, 
 			 zVal - 10 * cos( (PI/180.0) * angle), 
@@ -572,8 +568,9 @@ void drawScene(void)
    if (!isFrustumCulled)
    {
 	   // Draw all the asteroids in arrayAsteroids.
-	   for (j = 0; j<COLUMNS; j++)
-         for (i=0; i<ROWS; i++)
+   	//change column major
+	   for (i = 0; i < COLUMNS; i++)
+         for (j = 0; j < ROWS; j++)
             arrayAsteroids[i][j].draw();
    }
    else
@@ -581,6 +578,7 @@ void drawScene(void)
 	   // Draw only asteroids in leaf squares of the quadtree that intersect the frustum
 	   // "carried" by the spacecraft with apex at its tip and oriented with its axis
 	   // along the spacecraft's axis.
+	   // todo: constantly recalculating values - cache them
 	   asteroidsQuadtree.drawAsteroids(xVal - 7.072 * sin((PI / 180.0) * (45.0 + angle)),
 		   zVal - 7.072 * cos((PI / 180.0) * (45.0 + angle)),
 		   xVal - 353.6 * sin((PI / 180.0) * (45.0 + angle)),
@@ -589,7 +587,7 @@ void drawScene(void)
 		   zVal - 353.6 * cos((PI / 180.0) * (45.0 - angle)),
 		   xVal + 7.072 * sin((PI / 180.0) * (45.0 - angle)),
 		   zVal - 7.072 * cos((PI / 180.0) * (45.0 - angle))
-		   );
+	   );
    }
    // End right viewport.
 

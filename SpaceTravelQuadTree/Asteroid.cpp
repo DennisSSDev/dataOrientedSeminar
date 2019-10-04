@@ -52,6 +52,9 @@ void Asteroid::draw()
 
 	  // why would you be creating this again if setup already has it created for you?
 	  // The translation of those spheres does not change so calling create sphere again is a complete waste
+	  //
+	  // Or clear the array before doing this
+	  // and then grab a reference to the index and init the indices properly
 	  // CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
 
 	  // draw sphere

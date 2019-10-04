@@ -7,8 +7,7 @@ using namespace std;
 // Obtained from example Angel code for graphics
 
 // Create a NULL-terminated string by reading the provided file
-static char*
-readShaderSource(const char* shaderFile)
+static char* readShaderSource(const char* shaderFile)
 {
     //FILE* fp = fopen(shaderFile, "r"); // VS gives warning about being insecure :-)
 

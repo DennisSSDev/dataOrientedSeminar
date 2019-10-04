@@ -155,61 +155,85 @@ void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 
 // function derived from tutorial at:
 // http://www.swiftless.com/tutorials/opengl/sphere.html
-void CreateSphere(double R, double H, double K, double Z, int offset) {
-	int n;
+// change -- make this function be called once and just copy these values over
+// to other spheres so that you don't recalculate this every time
+glm::uint CreateSphere(double R, double H, double K, double Z, int offset) {
+	int n = 0;
 	double a;
 	double b;
-	n = 0;
 	const int space = 30;
-
+	int inc = 0;
 	// draw the front half
-	for (b = 0; b <= 90 - space; b += space){
+	for (b = 0; b <= 90 - space; b += space) {
+		
+		// memo
+		const float p4 =  cos((b) / 180 * PI);
+		const float p2 = sin((b) / 180 * PI);
+
+		const float p5 = sin((b + space) / 180 * PI);
+		const float p6 = cos((b + space) / 180 * PI);
+
+		const float z_Calc1 = R * p4 - Z;
+		const float z_Calc2 = R * p6 - Z;
+		
 		for (a = 0; a <= 360 - space; a += space){
+			
+			const float p1 = sin((a) / 180 * PI);
+			const float p3 = cos((a) / 180 * PI);
 
-			points[n + offset].x = R * sin((a) / 180 * PI) * sin((b) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a) / 180 * PI) * sin((b) / 180 * PI) + K;
-			points[n + offset].z = R * cos((b) / 180 * PI) - Z;
-			n++;
+			const float p7 = sin((a + space) / 180 * PI);
+			const float p8 = cos((a + space) / 180 * PI);
 
-			points[n + offset].x = R * sin((a) / 180 * PI) * sin((b + space) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a) / 180 * PI) * sin((b + space) / 180 * PI) + K;
-			points[n + offset].z = R * cos((b + space) / 180 * PI) - Z;
-			n++;
-			points[n + offset].x = R * sin((a + space) / 180 * PI) * sin((b) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a + space) / 180 * PI) * sin((b) / 180 * PI) + K;
-			points[n + offset].z = R * cos((b) / 180 * PI) - Z;
-			n++;
-			points[n + offset].x = R * sin((a + space) / 180 * PI) * sin((b + space) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a + space) / 180 * PI) * sin((b + space) / 180 * PI) + K;
-			points[n + offset].z = R * cos((b + space) / 180 * PI) - Z;
-			n++;
+			glm::uint nOffset = n + offset;
+		
+			
+			points[nOffset].x = R * p1 * p2 - H;
+			points[nOffset].y = R * p3 * p2 + K;
+			points[nOffset++].z = z_Calc1;
+			++n;
+			++inc;
+			
+			points[nOffset].x = R * p1 * p5 - H;
+			points[nOffset].y = R * p3 * p5 + K;
+			points[nOffset++].z = z_Calc2;
+			++n;
+			++inc;
+
+			points[nOffset].x = R * p7 * p2 - H;
+			points[nOffset].y = R * p8 * p2 + K;
+			points[nOffset++].z = z_Calc1;
+			++n;
+			++inc;
+			
+			points[nOffset].x = R * p7 * p5 - H;
+			points[nOffset].y = R * p8 * p5 + K;
+			points[nOffset++].z = z_Calc2;
+			++n;
+			++inc;
 		}
 	}
 
 	// draw the back half
-	for (b = 0; b <= 90 - space; b += space){
-		for (a = 0; a <= 360 - space; a += space){
+	// why recalculate? Access the previous vertices
+	for (b = 0; b <= 90 - space; b += space)
+	{
+		for (a = 0; a <= 360 - space; a += space)
+		{
+			glm::uint nOffset = n + offset;
+			glm::uint indexOffset = nOffset - inc;
+			glm::uint iterator = 0;
 
-			points[n + offset].x = R * sin((a) / 180 * PI) * sin((b) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a) / 180 * PI) * sin((b) / 180 * PI) + K;
-			points[n + offset].z = -1 * (R * cos((b) / 180 * PI)) - Z;
-			n++;
-
-			points[n + offset].x = R * sin((a) / 180 * PI) * sin((b + space) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a) / 180 * PI) * sin((b + space) / 180 * PI) + K;
-			points[n + offset].z = -1 * (R * cos((b + space) / 180 * PI)) - Z;
-			n++;
-			points[n + offset].x = R * sin((a + space) / 180 * PI) * sin((b) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a + space) / 180 * PI) * sin((b) / 180 * PI) + K;
-			points[n + offset].z = -1 * (R * cos((b) / 180 * PI)) - Z;
-			n++;
-			points[n + offset].x = R * sin((a + space) / 180 * PI) * sin((b + space) / 180 * PI) - H;
-			points[n + offset].y = R * cos((a + space) / 180 * PI) * sin((b + space) / 180 * PI) + K;
-			points[n + offset].z = -1 * (R * cos((b + space) / 180 * PI)) - Z;
-			n++;
+			while(iterator++ < 4)
+			{
+				points[nOffset].x = points[indexOffset].x;
+				points[nOffset].y = points[indexOffset].y;
+				points[nOffset++].z = -1 * points[indexOffset].z; // negative but same
+				indexOffset++;
+				n++;
+			}
 		}
 	}
-
+	return n; // determine how much is the offset so that you can easily copy already calculated values for the sphere
 }
 
 
@@ -230,63 +254,84 @@ void resize(GLFWwindow* window, int w, int h)
 // Initialization routine.
 void setup(void) 
 {
-   int i, j;
-   float initialSize;
-   // create meory for each potential asteroid
-   arrayAsteroids = new Asteroid *[ROWS];
-   for (int i = 0; i < ROWS; i++) {
-	   arrayAsteroids[i] = new Asteroid[COLUMNS];
-   }
+	int i, j = 0;
+	float initialSize;
+    // create memory for each potential asteroid
 
-   // create the quad tree for the asteroids
-   asteroidsQuadtree.setRowsCols(ROWS, COLUMNS);
-   asteroidsQuadtree.setArray(arrayAsteroids);
+	// changed columns and rows
+	// todo: structure of arrays
+	arrayAsteroids = new Asteroid *[COLUMNS];
+	for (i = 0; i < COLUMNS; ++i) 
+	{
+		arrayAsteroids[i] = new Asteroid[ROWS];
+    }
 
-   // create the line for the middle of the screen
-   points[line_index].x = 0;
-   points[line_index].y = -5;
-   points[line_index].z = -6;
-   points[line_index + 1].x = 0;
-   points[line_index + 1].y = 5;
-   points[line_index + 1].z = -6;
+    // create the quad tree for the asteroids
+    asteroidsQuadtree.setRowsCols(ROWS, COLUMNS);
+    asteroidsQuadtree.setArray(arrayAsteroids);
 
-   // create the cone for a spaceship
-   glm::vec3 direction( 0, 1, 0 );
-   glm::vec3 apex(0, 10, 0);
-   CreateCone(direction, apex, 10, 5, 10, cone_index);
+    // create the line for the middle of the screen
+    points[line_index].x = 0;
+    points[line_index].y = -5;
+    points[line_index].z = -6;
+    points[line_index + 1].x = 0;
+    points[line_index + 1].y = 5;
+    points[line_index + 1].z = -6;
 
-   // create where the spheres are going in the field   
-   int index = sphere_index;
+    // create the cone for a spaceship
+    const glm::vec3 direction( 0, 1, 0 );
+    const glm::vec3 apex(0, 10, 0);
+	
+    CreateCone(direction, apex, 10, 5, 10, cone_index);
+
+    // create where the spheres are going in the field   
+    int index = sphere_index;
+	// calculate the sphere once - reuse the data after
+	glm::uint validSpaces = CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
+
    // Initialize global arrayAsteroids.
-   for (j=0; j<COLUMNS; j++)
-      for (i=0; i<ROWS; i++)
-		  if (rand() % 100 < FILL_PROBABILITY)
-			  // If rand()%100 >= FILL_PROBABILITY the default constructor asteroid remains in the slot which
-			  // indicates that there is no asteroid there because the default's radius is 0.
-		  {
-	   // Position the asteroids depending on if there is an even or odd number of columns
-	   // so that the spacecraft faces the middle of the asteroid field.
-	   if (COLUMNS % 2) // Odd number of columns. 
-	   {
-		   arrayAsteroids[i][j] = Asteroid(30.0*(-COLUMNS / 2 + j), 0.0, -40.0 - 30.0*i, 3.0,
-			   rand() % 256, rand() % 256, rand() % 256);
-		   arrayAsteroids[i][j].setIndex(index);
-		   CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
-		   index += SPHERE_VERTEX_COUNT;
-	   }
-	   else // Even number of columns. 
-	   {
-		   arrayAsteroids[i][j] = Asteroid(15.0 + 30.0*(-COLUMNS / 2 + j), 0.0, -40.0 - 30.0*i, 3.0,
-			   rand() % 256, rand() % 256, rand() % 256);
-		   arrayAsteroids[i][j].setIndex(index);
-		   CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
-		   index += SPHERE_VERTEX_COUNT;
-	   }
-		  }
+   // 
+   // RED FLAG!!!! Incorrect 2D array iteration
+   //
+	// change -- move the if else outside of the loop
+	// change -- no need to check for COLUMN evenness every time just calculate it once and add the number if neccessary, a lot less code
+	// Position the asteroids depending on if there is an even or odd number of columns
+    // so that the spacecraft faces the middle of the asteroid field.
+	const float odd = (COLUMNS % 2) ? 0 : 15.f; // changed
+	for (i = 0; i < COLUMNS; i++)
+	{
+		for (j = 0; j < ROWS; j++)
+		{
+			if (rand() % 100 < FILL_PROBABILITY)
+			{
+				arrayAsteroids[i][j] = Asteroid(
+					odd + 30.0f * (-COLUMNS / 2.f + j), 
+					0.0, 
+					-40.0f - 30.0f * i, 
+					3.0f, 
+					rand() % 256, 
+					rand() % 256, 
+					rand() % 256
+				);
+	   			arrayAsteroids[i][j].setIndex(index);
+				glm::uint count = 0;
+				while(count < validSpaces)
+				{
+					points[count + index] = points[count + sphere_index];
+					count++;
+				}
+	   			index += SPHERE_VERTEX_COUNT;
+			}
+		}
+	}
+
+  
+  
 
    // Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
-   if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1)*30.0 + 6.0;
+   if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
    else initialSize = (ROWS - 1)*30.0 + 6.0;
+
    asteroidsQuadtree.initialize( -initialSize/2.0, -37.0, initialSize );
    
    // initialize the graphics
@@ -335,7 +380,7 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 // Collision detection is approximate as instead of the spacecraft we use a bounding sphere.
 int asteroidCraftCollision( float x, float z, float a)
 {
-   int i,j;
+   int i, j;
 
    // Check for collision with each asteroid.
    for (j=0; j<COLUMNS; j++)
@@ -350,8 +395,16 @@ int asteroidCraftCollision( float x, float z, float a)
 }
 
 // function taken from glu
-void lookAt(float eyex, float eyey, float eyez, float centerx,
-float centery, float centerz, float upx, float upy, float upz)
+void lookAt(
+	float eyex, 
+	float eyey, 
+	float eyez, 
+	float centerx,
+	float centery, 
+	float centerz, 
+	float upx, 
+	float upy, 
+	float upz)
 {
 	int i;
 	glm::vec3 forward, side, up;

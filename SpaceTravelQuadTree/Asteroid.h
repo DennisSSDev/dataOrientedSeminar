@@ -14,10 +14,10 @@ public:
    Asteroid();
    Asteroid(float x, float y, float z, float r, unsigned char valueR, 
 	    	unsigned char valueG, unsigned char valueB);
-   float getCenterX() { return centerX; }
-   float getCenterY() { return centerY; }
-   float getCenterZ() { return centerZ; }
-   float getRadius()  { return radius; }
+   const float& getCenterX() { return centerX; }
+   const float& getCenterY() { return centerY; }
+   const float& getCenterZ() { return centerZ; }
+   const float& getRadius()  { return radius; }
    void draw();
    void setIndex(int i) { index = i; }
 private:

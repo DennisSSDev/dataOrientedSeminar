@@ -34,7 +34,7 @@ Asteroid::Asteroid(float x, float y, float z, float r, unsigned char valueR,
    color[2] = valueB;
 }
 
-extern void CreateSphere(double R, double H, double K, double Z, int offset);
+extern glm::uint CreateSphere(double R, double H, double K, double Z, int offset);
 
 // Function to draw asteroid.
 void Asteroid::draw()
@@ -50,8 +50,9 @@ void Asteroid::draw()
 	  glPolygonMode(GL_FRONT, GL_LINE);
 	  glPolygonMode(GL_BACK, GL_LINE);
 
-	  // create the sphere and place it in a global array
-	  CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
+	  // why would you be creating this again if setup already has it created for you?
+	  // The translation of those spheres does not change so calling create sphere again is a complete waste
+	  // CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
 
 	  // draw sphere
 	  glDrawArrays(GL_TRIANGLE_FAN, index, SPHERE_VERTEX_COUNT);

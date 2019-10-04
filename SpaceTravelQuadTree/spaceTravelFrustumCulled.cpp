@@ -287,14 +287,12 @@ void setup(void)
     // create where the spheres are going in the field   
     int index = sphere_index;
 	// calculate the sphere once - reuse the data after
-	glm::uint validSpaces = CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
+	const glm::uint validSpaces = CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
 
-   // Initialize global arrayAsteroids.
-   // 
-   // RED FLAG!!!! Incorrect 2D array iteration
-   //
+    // Initialize global arrayAsteroids.
+    // 
 	// change -- move the if else outside of the loop
-	// change -- no need to check for COLUMN evenness every time just calculate it once and add the number if neccessary, a lot less code
+	// change -- no need to check for COLUMN evenness every time just calculate it once and add the number if necessary, a lot less code
 	// Position the asteroids depending on if there is an even or odd number of columns
     // so that the spacecraft faces the middle of the asteroid field.
 	const float odd = (COLUMNS % 2) ? 0 : 15.f; // changed
@@ -328,43 +326,44 @@ void setup(void)
   
   
 
-   // Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
-   if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
-   else initialSize = (ROWS - 1)*30.0 + 6.0;
+	// Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
+	if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
+	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
 
-   asteroidsQuadtree.initialize( -initialSize/2.0, -37.0, initialSize );
-   
-   // initialize the graphics
-   glEnable(GL_DEPTH_TEST);
-   glClearColor (0.0, 0.0, 0.0, 0.0);
-   glViewport(0, 0, (GLsizei)WINDOW_X, (GLsizei)WINDOW_Y);
-   glMatrixMode(GL_PROJECTION);
-   glLoadIdentity();
-   glFrustum(-5.0, 5.0, -5.0, 5.0, 5.0, 250.0);
-   glMatrixMode(GL_MODELVIEW);
+	asteroidsQuadtree.initialize( -initialSize / 2.0f, -37.0f, initialSize );
+	// END OF OPTIMIZATIONS HERE
 
-   // Create a vertex array object
-   GLuint vao;
-   glGenVertexArrays(1, &vao);
-   glBindVertexArray(vao);
+	
+	// initialize the graphics
+	glEnable(GL_DEPTH_TEST);
+	glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
+	glViewport(0, 0, (GLsizei)WINDOW_X, (GLsizei)WINDOW_Y);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glFrustum(-5.0, 5.0, -5.0, 5.0, 5.0, 250.0);
+	glMatrixMode(GL_MODELVIEW);
+	
+	// Create a vertex array object
+	GLuint vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
 
-   // Create and initialize a buffer object for each circle
-   GLuint aBuffer;
-   glGenBuffers(1, &aBuffer);
-   myBuffer = aBuffer;
-   glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
-   glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+	// Create and initialize a buffer object for each circle
+	GLuint aBuffer;
+	glGenBuffers(1, &aBuffer);
+	myBuffer = aBuffer;
+	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
 
-   // Load shaders and use the resulting shader program
-   GLuint program = InitShader("vshader.glsl", "fshader.glsl");
-   myShaderProgram = program;
-   glUseProgram(myShaderProgram);
+	// Load shaders and use the resulting shader program
+	GLuint program = InitShader("vshader.glsl", "fshader.glsl");
+	myShaderProgram = program;
+	glUseProgram(myShaderProgram);
 
-   // Initialize the vertex position attribute from the vertex shader
-   GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
-   glEnableVertexAttribArray(loc);
-   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
+	// Initialize the vertex position attribute from the vertex shader
+	GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 }
 
 // Function to check if two spheres centered at (x1,y1,z1) and (x2,y2,z2) with

@@ -20,9 +20,8 @@ QuadtreeNode::QuadtreeNode(float x, float z, float s)
 int QuadtreeNode::numberAsteroidsIntersected()
 {
    int numVal = 0;
-   int i, j;
-   for (j=0; j<cols; j++)
-      for (i=0; i<rows; i++)
+   for (int j = 0; j < cols; j++)
+      for (int i = 0; i < rows; i++)
 	     if (arrayAsteroids[i][j].getRadius() > 0.0) 
 	        if ( checkDiscRectangleIntersection( SWCornerX, SWCornerZ, SWCornerX+size, SWCornerZ-size,
                  arrayAsteroids[i][j].getCenterX(), arrayAsteroids[i][j].getCenterZ(), 
@@ -54,15 +53,15 @@ void QuadtreeNode::build()
    if ( this->numberAsteroidsIntersected() <= 1 ) this->addIntersectingAsteroidsToList();
    else
    {
-      SWChild = new QuadtreeNode(SWCornerX, SWCornerZ, size/2.0);
+      SWChild = new QuadtreeNode(SWCornerX, SWCornerZ, size / 2.0f);
 	  SWChild->setRowsCols(rows, cols);
 	  SWChild->setArray(arrayAsteroids);
 
-      NWChild = new QuadtreeNode(SWCornerX, SWCornerZ - size/2.0, size/2.0);
+      NWChild = new QuadtreeNode(SWCornerX, SWCornerZ - size / 2.0f, size / 2.0f);
 	  NWChild->setRowsCols(rows, cols);
 	  NWChild->setArray(arrayAsteroids);
 
-      NEChild = new QuadtreeNode(SWCornerX + size/2.0, SWCornerZ - size/2.0, size/2.0);
+      NEChild = new QuadtreeNode(SWCornerX + size / 2.0f, SWCornerZ - size / 2.0f, size / 2.0f);
 	  NEChild->setRowsCols(rows, cols);
 	  NEChild->setArray(arrayAsteroids);
 

@@ -34,9 +34,7 @@
 #include <GL/glew.h>
 #include <GL/glfw3.h>
 #include <glm/glm.hpp>
-#include <list>
 #include <vector>
-#include "intersectionDetectionRoutines.h"
 #include "Asteroid.h"
 #include "QuadTree.h"
 
@@ -46,14 +44,12 @@ using namespace std;
 #pragma comment ( lib, "glew32.lib" )
 #pragma comment ( lib, "glfw3.lib" )
 
-#define ROWS 100  // Number of rows of asteroids.
-#define COLUMNS 100 // Number of columns of asteroids.
+
 #define FILL_PROBABILITY 100 // Percentage probability that a particular row-column slot will be 
                              // filled with an asteroid. It should be an integer between 0 and 100.
 #define WINDOW_X 1600
 #define WINDOW_Y 800
 
-#define SIN180 sin((PI/180.f))
 
 // Globals.
 static int width, height; // Size of the OpenGL window.
@@ -70,33 +66,25 @@ static int isCollision = 0; // Is there collision between the spacecraft and an 
 // #define SPHERE_VERTEX_COUNT 288 // moved to Asteroids.h because asteroids draw themselves
 
 // initial indices where data starts getting drawn for different data types
-int cone_index = 0;
-int line_index = cone_index + CONE_VERTEX_COUNT;
-int sphere_index = line_index + LINE_VERTEX_COUNT;
+static int cone_index = 0;
+static int line_index = cone_index + CONE_VERTEX_COUNT;
+static int sphere_index = line_index + LINE_VERTEX_COUNT;
 
 // shader stuff
-glm::vec3 points[CONE_VERTEX_COUNT+LINE_VERTEX_COUNT+SPHERE_VERTEX_COUNT*ROWS*COLUMNS]; // addition of all rows/cols for asteroid vertices + spaceship vertices + line vertices  
-GLuint  myShaderProgram;
+// addition of all rows/cols for asteroid vertices + spaceship vertices + line vertices  
+static glm::vec3 points[CONE_VERTEX_COUNT+LINE_VERTEX_COUNT+SPHERE_VERTEX_COUNT*ROWS*COLUMNS];
+static GLuint myShaderProgram;
 GLuint InitShader(const char* vShaderFile, const char* fShaderFile);
-GLuint	myBuffer;
+static GLuint myBuffer;
 
 // the asteroids and quad tree from the initial program
-Asteroid *arrayAsteroids; // Global array of asteroids.
-Quadtree asteroidsQuadtree; // Global quadtree.
-
-//static long font = (long)GLUT_BITMAP_8_BY_13; // Font selection.
-// Routine to draw a bitmap character string.
-// DOES NOT WORK WITHOUT GLUT
-void writeBitmapString(void *font, char *string)
-{  
-   char *c;
-//   for (c = string; *c != '\0'; c++) glutBitmapCharacter(font, *c);
-} 
+static Asteroids asteroids = Asteroids(); // Global array of asteroids.
+static Quadtree asteroidsQuadtree; // Global quadtree.
 
 // function obtained from tutorial at:
 // http://www.freemancw.com/2012/06/opengl-cone-function/
 // used in drawing a cone
-glm::vec3  perp(const glm::vec3 &v) {
+static glm::vec3  perp(const glm::vec3 &v) {
 	float min = fabs(v.x);
 	glm::vec3 cardinalAxis( 1, 0, 0 );
 
@@ -114,7 +102,7 @@ glm::vec3  perp(const glm::vec3 &v) {
 
 // function derived from tutorial at:
 // http://www.freemancw.com/2012/06/opengl-cone-function/
-void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
+static void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 	const float h, const float rd, const int n, int offset) {
 	glm::vec3 c;
 	c.x = a.x + (-d.x * h);
@@ -150,16 +138,13 @@ void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 	points[o].x = pts[0].x;
 	points[o].y = pts[0].y;
 	points[o].z = pts[0].z;
-
-	// original tutorial has cone bottom
-	// not necessary when cone is a spaceship!
 }
 
 // function derived from tutorial at:
 // http://www.swiftless.com/tutorials/opengl/sphere.html
 // change -- make this function be called once and just copy these values over
 // to other spheres so that you don't recalculate this every time
-glm::uint CreateSphere(double R, double H, double K, double Z, int offset) {
+static glm::uint CreateSphere(const float& R, const float& H, const float& K, const float& Z, const int& offset) {
 	int n = 0;
 	double a;
 	double b;
@@ -240,7 +225,7 @@ glm::uint CreateSphere(double R, double H, double K, double Z, int offset) {
 
 
 // OpenGL window reshape routine.
-void resize(GLFWwindow* window, int w, int h)
+inline void resize(GLFWwindow* window, int w, int h)
 {
 	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
 	glMatrixMode(GL_PROJECTION);
@@ -259,10 +244,7 @@ void setup(void)
 	int i, j;
 	float initialSize;
     // create memory for each potential asteroid
-
-	// todo: structure of arrays
-	arrayAsteroids = new Asteroid[COLUMNS*ROWS];
-
+	
     // create the quad tree for the asteroids
     asteroidsQuadtree.setLength(COLUMNS*ROWS);
 
@@ -301,17 +283,19 @@ void setup(void)
 			if (rand() % 100 < FILL_PROBABILITY)
 			{
 				const glm::uint inn = COLUMNS * j + i;
-				arrayAsteroids[inn] = Asteroid(
-					odd + 30.0f * (-COLUMNS / 2.f + j), 
-					0.0, 
-					-40.0f - 30.0f * i, 
-					3.0f, 
-					rand() % 256, 
-					rand() % 256, 
-					rand() % 256
-				);
-	   			arrayAsteroids[inn].setIndex(index);
+				asteroids.x[inn] = odd + 30.0f * (-COLUMNS / 2.f + j);
+				asteroids.y[inn] = 0.f;
+				asteroids.z[inn] = -40.0f - 30.0f * i;
+				asteroids.rds[inn] = 3.f;
+				
+				asteroids.r[inn] = rand() % 256;
+				asteroids.g[inn] = rand() % 256;
+				asteroids.b[inn] = rand() % 256;
+				
+				asteroids.i[inn] = index;
+				
 				glm::uint count = 0;
+				
 				while(count < validSpaces)
 				{
 					points[count + index] = points[count + sphere_index];
@@ -322,43 +306,34 @@ void setup(void)
 		}
 	}
 
-  
-  
-
 	// Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
 	if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
 	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
 	
-    asteroidsQuadtree.setArray(arrayAsteroids);
-
+    asteroidsQuadtree.setArray(asteroids);
 	asteroidsQuadtree.initialize( -initialSize / 2.0f, -37.0f, initialSize );
-
-	// no need to use up the memory anymore
-	x_set.clear();
-	z_set.clear();
-	// END OF OPTIMIZATIONS HERE
-
 	
 	// initialize the graphics
 	glEnable(GL_DEPTH_TEST);
-	glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
+	
 	glViewport(0, 0, (GLsizei)WINDOW_X, (GLsizei)WINDOW_Y);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glFrustum(-5.0, 5.0, -5.0, 5.0, 5.0, 250.0);
 	glMatrixMode(GL_MODELVIEW);
+
+	
+	GLuint vbo;
+	glGenBuffers(1, &vbo);
+	myBuffer = vbo;
+	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
 	// Create a vertex array object
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
-
-	// Create and initialize a buffer object for each circle
-	GLuint aBuffer;
-	glGenBuffers(1, &aBuffer);
-	myBuffer = aBuffer;
-	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
 
 	// Load shaders and use the resulting shader program
 	GLuint program = InitShader("vshader.glsl", "fshader.glsl");
@@ -385,19 +360,18 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 int asteroidCraftCollision(const float& x, const float& z, const float& a)
 {
 	// Check for collision with one asteroid
-    float arr[4]{0.f,0.f,0.f,0.f};
-	vector<Asteroid> ast;
+	AsteroidLocations astl;
 	
-	const float x_calc = x - 5.f * sin( (PI/180.f) * a); 
-	const float z_calc = z - 5 * cos( (PI/180.f) * a);
+	const float x_calc = x - 5.f * sin((PI/180.f) * a); 
+	const float z_calc = z - 5 * cos((PI/180.f) * a);
 	
-	asteroidsQuadtree.gatherAsteroid(x_calc, z_calc, ast);
-	if (!ast.empty()) // If asteroid exists. 
+	asteroidsQuadtree.gatherAsteroid(x_calc, z_calc, astl);
+	if (!astl.l.empty()) // If asteroid exists. 
 	{
-		for(auto &it : ast)
+		for(auto &it : astl.l)
 		{
-			if ( checkSpheresIntersection(x_calc, 0.f, z_calc, 7.072f, 
-		    it.getCenterX(), it.getCenterY(), it.getCenterZ(), it.getRadius()) 
+			if (checkSpheresIntersection(x_calc, 0.f, z_calc, 7.072f, 
+		    it.x, it.y, it.z, it.rds) 
 			)
 			{
 				return 1;
@@ -424,7 +398,7 @@ void lookAt(
 	float m[4][4];
 
 	// create identity matrix
-	for (int i = 0; i < 4; i++) {
+	for (i = 0; i < 4; i++) {
 		m[i][0] = 0;
 		m[i][1] = 0;
 		m[i][2] = 0;
@@ -470,6 +444,50 @@ void lookAt(
 	glTranslated(-eyex, -eyey, -eyez);
 }
 
+static void drawAllAsteroids()
+{
+	for(int i = 0; i < ROWS*COLUMNS; i++)
+	{
+		if(asteroids.rds[i] > 0.f)
+		{
+			glPushMatrix();
+			
+			glTranslatef(asteroids.x[i], asteroids.y[i], asteroids.z[i]);
+			glColor3ub(asteroids.r[i], asteroids.g[i], asteroids.b[i]);
+			
+			glPolygonMode(GL_FRONT, GL_LINE);
+			glPolygonMode(GL_BACK, GL_LINE);
+			
+			glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[i], SPHERE_VERTEX_COUNT);
+			
+			glPolygonMode(GL_FRONT, GL_FILL);
+			glPolygonMode(GL_BACK, GL_FILL);
+
+			glPopMatrix();
+		}
+	}
+}
+
+void drawAsteroid(const unsigned int at)
+{
+	if(asteroids.rds[at] > 0.f)
+	{
+		glPushMatrix();
+			
+		glTranslatef(asteroids.x[at], asteroids.y[at], asteroids.z[at]);
+		glColor3ub(asteroids.r[at], asteroids.g[at], asteroids.b[at]);
+			
+		glPolygonMode(GL_FRONT, GL_LINE);
+		glPolygonMode(GL_BACK, GL_LINE);
+			
+		glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[at], SPHERE_VERTEX_COUNT);
+			
+		glPolygonMode(GL_FRONT, GL_FILL);
+		glPolygonMode(GL_BACK, GL_FILL);
+
+		glPopMatrix();
+	}
+}
 
 // Drawing routine.
 void drawScene(void)
@@ -482,16 +500,12 @@ void drawScene(void)
    glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
 
    // Initialize the vertex position attribute from the vertex shader.
-   GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
-   glEnableVertexAttribArray(loc);
-   glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-   // copy over global points array in case anything has changed
-   // very slow when points is just HUGE
-   glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
-   glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+    GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
+    glEnableVertexAttribArray(loc);
+    glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
    // Begin left viewport.
-   glViewport (0, 0, width/2.0,  height); 
+   glViewport (0, 0, width / 2.0,  height); 
    glLoadIdentity();
 
    
@@ -500,13 +514,7 @@ void drawScene(void)
 
 	if (!isFrustumCulled)
 	{
-		// Draw all the asteroids in arrayAsteroids.
-		// change to column major
-
-   		for (i = 0; i < COLUMNS*ROWS; i++)
-   		{
-   			arrayAsteroids[i].draw();
-   		}
+   		drawAllAsteroids();
 	}
 	else
 	{
@@ -556,38 +564,41 @@ void drawScene(void)
    glPopMatrix();
 
    // Locate the camera at the tip of the cone and pointing in the direction of the cone.
-	// todo: this is constantly recalculated - cache it
-   lookAt(xVal - 10 * sin( (PI/180.0) * angle), 
+	const float sinDegree = sin( (PI/180.0) * angle);
+	const float cosDegree = cos( (PI/180.0) * angle);
+	lookAt(xVal - 10 * sinDegree, 
 	         0.0, 
-			 zVal - 10 * cos( (PI/180.0) * angle), 
-	         xVal - 11 * sin( (PI/180.0) * angle),
+			 zVal - 10 * cosDegree, 
+	         xVal - 11 * sinDegree,
 			 0.0,
-             zVal - 11 * cos( (PI/180.0) * angle), 
+             zVal - 11 * cosDegree, 
              0.0, 
 			 1.0, 
 			 0.0);
 
    if (!isFrustumCulled)
    {
-	   // Draw all the asteroids in arrayAsteroids.
-   		//change column major
-	   for (i = 0; i < COLUMNS*ROWS; i++)
-            arrayAsteroids[i].draw();
+	   drawAllAsteroids();
    }
    else
    {
 	   // Draw only asteroids in leaf squares of the quadtree that intersect the frustum
 	   // "carried" by the spacecraft with apex at its tip and oriented with its axis
 	   // along the spacecraft's axis.
-	   // todo: constantly recalculating values - cache them
-	   asteroidsQuadtree.drawAsteroids(xVal - 7.072 * sin((PI / 180.0) * (45.0 + angle)),
-		   zVal - 7.072 * cos((PI / 180.0) * (45.0 + angle)),
-		   xVal - 353.6 * sin((PI / 180.0) * (45.0 + angle)),
-		   zVal - 353.6 * cos((PI / 180.0) * (45.0 + angle)),
-		   xVal + 353.6 * sin((PI / 180.0) * (45.0 - angle)),
-		   zVal - 353.6 * cos((PI / 180.0) * (45.0 - angle)),
-		   xVal + 7.072 * sin((PI / 180.0) * (45.0 - angle)),
-		   zVal - 7.072 * cos((PI / 180.0) * (45.0 - angle))
+	   
+		const float sinAngleDeg = sin((PI / 180.0) * (45.0 + angle));
+   		const float zCosAngleDeg = cos((PI / 180.0) * (45.0 + angle));
+   		const float xSinAngleDeg = sin((PI / 180.0) * (45.0 - angle));
+   		const float cosAngleDeg = cos((PI / 180.0) * (45.0 - angle));
+   	
+	   asteroidsQuadtree.drawAsteroids(xVal - 7.072 * sinAngleDeg,
+		   zVal - 7.072 * zCosAngleDeg,
+		   xVal - 353.6 * sinAngleDeg,
+		   zVal - 353.6 * zCosAngleDeg,
+		   xVal + 353.6 * xSinAngleDeg,
+		   zVal - 353.6 * cosAngleDeg,
+		   xVal + 7.072 * xSinAngleDeg,
+		   zVal - 7.072 * cosAngleDeg
 	   );
    }
    // End right viewport.
@@ -643,7 +654,7 @@ void keyInput(GLFWwindow* window, int key, int scancode, int action, int mods)
 }
 
 // Routine to output interaction instructions to the C++ window.
-void printInteraction(void)
+inline void printInteraction(void)
 {
    cout << "ALERT: The OpenGL window may take a while to come up because" << endl
 		<< "of the time to build the quadtree!" << endl
@@ -657,7 +668,6 @@ void printInteraction(void)
 // Main routine.
 int main(int argc, char **argv) 
 {
-
 	srand((unsigned)time(0));
 	printInteraction();
 
@@ -699,8 +709,6 @@ int main(int argc, char **argv)
 	}
 
 	glfwTerminate();
-
 	return 0;
-
 }
 

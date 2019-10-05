@@ -2,28 +2,27 @@
 #ifndef Asteroid_13389437
 #define Asteroid_13389437
 #define PI 3.14159265
+#define ROWS 100  // Number of rows of asteroids.
+#define COLUMNS 100 // Number of columns of asteroids.
 #include <glm/glm.hpp>
 
 #define SPHERE_VERTEX_COUNT 288
 #define SPHERE_SIZE 5.0f
 
-// Asteroid class.
-class Asteroid
+struct Asteroids
 {
-public:
-   Asteroid();
-   Asteroid(float x, float y, float z, float r, unsigned char valueR, 
-	    	unsigned char valueG, unsigned char valueB);
-   const float& getCenterX() { return centerX; }
-   const float& getCenterY() { return centerY; }
-   const float& getCenterZ() { return centerZ; }
-   const float& getRadius()  { return radius; }
-   void draw();
-   void setIndex(int i) { index = i; }
-private:
-   float centerX, centerY, centerZ, radius;
-   unsigned char color[3];
-   int index; // index into the single array holding all vertices
+	// pos
+	float x[ROWS*COLUMNS];
+	float y[ROWS*COLUMNS];
+	float z[ROWS*COLUMNS];
+	// index
+	float i[ROWS*COLUMNS];
+	// radius
+	float rds[ROWS*COLUMNS];
+	//colors
+	unsigned char r[ROWS*COLUMNS];
+	unsigned char g[ROWS*COLUMNS];
+	unsigned char b[ROWS*COLUMNS];
 };
 
 #endif

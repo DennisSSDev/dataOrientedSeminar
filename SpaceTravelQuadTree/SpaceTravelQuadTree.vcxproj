@@ -63,7 +63,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Asteroid.cpp" />
     <ClCompile Include="InitShader.cpp" />
     <ClCompile Include="QuadTree.cpp" />
     <ClCompile Include="spaceTravelFrustumCulled.cpp" />

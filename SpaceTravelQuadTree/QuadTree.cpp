@@ -1,8 +1,5 @@
 
 #include <cstdlib>
-#include <cmath>
-#include <list>
-#include <iostream>
 #include "QuadTree.h"
 #include "intersectionDetectionRoutines.h"
 
@@ -13,7 +10,6 @@ QuadtreeNode::QuadtreeNode(const float x, const float z, const float s)
 {
    SWCornerX = x; SWCornerZ = z; size = s;
    SWChild = NWChild = NEChild = SEChild = NULL;
-   asteroidList.clear();
 }
 
 // Return the number of asteroids intersecting the square.
@@ -23,20 +19,22 @@ int QuadtreeNode::numberAsteroidsIntersected()
 {
 	int numVal = 0;
 	// changed the iteration to be column row major
-	for (int i = 0; i < length; i++)
+	const unsigned int lSize = asteroidLocations.l.size();
+	for (int i = 0; i < lSize; i++)
 	{
-		const float& radius = arrayAsteroids[i].getRadius();
+		const Location& loc = asteroidLocations.l[i];
+		const float& radius = loc.rds;
 		if (radius > 0.f)
    		{
 			
-			const float& c_x = arrayAsteroids[i].getCenterX();
-			const float& c_z = arrayAsteroids[i].getCenterZ();
+			const float& c_x = loc.x;
+			const float& c_z = loc.z;
 			
 			if (checkDiscRectangleIntersection( SWCornerX, SWCornerZ, SWCornerX + size, SWCornerZ - size,
 					c_x, c_z, radius )
 				)
    			{
-   				asteroidList.emplace_back(arrayAsteroids[i]); 
+   				nodeAsteroids.l.emplace_back(loc); 
 				++numVal;
    			}
    		}
@@ -53,27 +51,22 @@ void QuadtreeNode::build()
 	// clear recalculation happening in the recursion. Memo this
 	if ( length > 1 ) 
 	{
-		Asteroid *arr = asteroidList.data(); // why give the whole thing down to the other branches? only bother with the ones that intersected
 		
 		const float halfSize = size / 2.f;
 		const float cornerHalfSize = SWCornerZ - size / 2.f;
 		const float otherCornerHalfSize = SWCornerX + size / 2.f;
 		
 		SWChild = new QuadtreeNode(SWCornerX, SWCornerZ, halfSize);
-		SWChild->setLength(length);
-		SWChild->setArray(arr);
+		SWChild->setArray(nodeAsteroids);
 
 		NWChild = new QuadtreeNode(SWCornerX, cornerHalfSize, halfSize);
-		NWChild->setLength(length);
-		NWChild->setArray(arr);
+		NWChild->setArray(nodeAsteroids);
 
 		NEChild = new QuadtreeNode(otherCornerHalfSize, cornerHalfSize, halfSize);
-		NEChild->setLength(length);
-		NEChild->setArray(arr);
+		NEChild->setArray(nodeAsteroids);
 
 		SEChild = new QuadtreeNode(otherCornerHalfSize, SWCornerZ, halfSize);
-		SEChild->setLength(length);
-		SEChild->setArray(arr);
+		SEChild->setArray(nodeAsteroids);
 
 		// can be even further optimized by hashing asteroids that ended up at the very end (1) so that no recalc needs to happen
 		SWChild->build(); NWChild->build(); NEChild->build(); SEChild->build(); 
@@ -93,15 +86,10 @@ void QuadtreeNode::drawAsteroids(const float& x1, const float& z1, const float& 
    {
       if (SWChild == NULL) // Square is leaf.
 	  {
-         // Define local iterator to traverse asteroidList and initialize.
-         auto asteroidListIterator = asteroidList.begin();
-
-         // Draw all the asteroids in asteroidList.
-         while(asteroidListIterator != asteroidList.end())
+		 if(nodeAsteroids.l.size() > 0)
 		 {
-            asteroidListIterator->draw();
-	        ++asteroidListIterator;
-		 }	  
+			drawAsteroid(nodeAsteroids.l[0].index);
+		 } 
 	  }
 	  else 
 	  {
@@ -113,43 +101,39 @@ void QuadtreeNode::drawAsteroids(const float& x1, const float& z1, const float& 
    }
 }
 
-void QuadtreeNode::gatherAsteroid(const float& x, const float& z, vector<Asteroid>& arr)
+void QuadtreeNode::gatherAsteroid(const float& x, const float& z, AsteroidLocations& al)
 {
-	//if(arr[3] == 0.f) // found the point recurse up
-	//{
-		if(checkDiscRectangleIntersection(SWCornerX, SWCornerZ, SWCornerX+size, SWCornerZ-size, x, z, 5.f))
+	if(checkDiscRectangleIntersection(SWCornerX, SWCornerZ, SWCornerX+size, SWCornerZ-size, x, z, 5.f))
+	{
+		if (SWChild == NULL) // Square is leaf.
 		{
-			if (SWChild == NULL) // Square is leaf.
+			if(nodeAsteroids.l.size() > 0)
 			{
-				if(asteroidList.size() > 0)
-				{
-					arr.push_back(asteroidList[0]);
-					/*
-					arr[0] = asteroidList[0].getCenterX();
-					arr[1] = asteroidList[0].getCenterY();
-					arr[2] = asteroidList[0].getCenterZ();
-					arr[3] = asteroidList[0].getRadius();
-					*/
-				}
-			}
-			else
-			{
-				SWChild->gatherAsteroid(x, z, arr);
-				NWChild->gatherAsteroid(x, z, arr);
-				NEChild->gatherAsteroid(x, z, arr); 
-				SEChild->gatherAsteroid(x, z, arr);
+				al.l.push_back(nodeAsteroids.l[0]);
 			}
 		}
-	//}
+		else
+		{
+			SWChild->gatherAsteroid(x, z, al);
+			NWChild->gatherAsteroid(x, z, al);
+			NEChild->gatherAsteroid(x, z, al); 
+			SEChild->gatherAsteroid(x, z, al);
+		}
+	}
 }
 
 // Initialize quadtree by splitting nodes till each leaf node intersects at most one asteroid.
 void Quadtree::initialize(const float x, const float z, const float s)
 {
-   header = new QuadtreeNode(x, z, s);
-   header->setLength(length);
-   header->setArray(arrayAsteroids);
-   header->build();
+	header = new QuadtreeNode(x, z, s);
+	AsteroidLocations al;
+	al.l.resize(length);
+	for(unsigned int i = 0; i < length; ++i)
+	{
+		al.l[i] = { arrayAsteroids.x[i], arrayAsteroids.y[i], arrayAsteroids.z[i], arrayAsteroids.rds[i], i };
+	}
+	header->setArray(al);
+	header->build();
 }
 
 // Routine to draw all the asteroids in the asteroid list of each leaf square that intersects the frustum.
@@ -159,7 +143,7 @@ void Quadtree::drawAsteroids(const float& x1, const float& z1, const float& x2, 
    header->drawAsteroids(x1, z1, x2, z2, x3, z3, x4, z4); 
 }
 
-void Quadtree::gatherAsteroid(const float& x, const float& z, vector<Asteroid>& arr) const
+void Quadtree::gatherAsteroid(const float& x, const float& z, AsteroidLocations& al) const
 {
-	header->gatherAsteroid(x, z, arr);
+	header->gatherAsteroid(x, z, al);
 }

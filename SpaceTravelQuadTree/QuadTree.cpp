@@ -9,7 +9,7 @@
 using namespace std;
 
 // QuadtreeNode constructor.
-QuadtreeNode::QuadtreeNode(float x, float z, float s)
+QuadtreeNode::QuadtreeNode(const float x, const float z, const float s)
 {
    SWCornerX = x; SWCornerZ = z; size = s;
    SWChild = NWChild = NEChild = SEChild = NULL;
@@ -31,17 +31,12 @@ int QuadtreeNode::numberAsteroidsIntersected()
 			
 			const float& c_x = arrayAsteroids[i].getCenterX();
 			const float& c_z = arrayAsteroids[i].getCenterZ();
-			/*
-			if(x_set.find(c_x) != x_set.end() && z_set.find(c_z) != z_set.end())
-			{
-				continue;
-			}
-			*/
+			
 			if (checkDiscRectangleIntersection( SWCornerX, SWCornerZ, SWCornerX + size, SWCornerZ - size,
 					c_x, c_z, radius )
 				)
    			{
-   				asteroidList.emplace_back(Asteroid(arrayAsteroids[i])); 
+   				asteroidList.emplace_back(arrayAsteroids[i]); 
 				++numVal;
    			}
    		}
@@ -82,21 +77,14 @@ void QuadtreeNode::build()
 
 		// can be even further optimized by hashing asteroids that ended up at the very end (1) so that no recalc needs to happen
 		SWChild->build(); NWChild->build(); NEChild->build(); SEChild->build(); 
-	}
-	/*
-	if( length != 0)
-	{
-		x_set.emplace(asteroidList[0].getCenterX());
-		z_set.emplace(asteroidList[0].getCenterZ());
-	}
-	*/
+	}	
 }
 
 // Recursive routine to draw the asteroids in a square's list if the square is a
 // leaf and it intersects the frustum (which is specified by the input parameters);
 // if the square is not a leaf, the routine recursively calls itself on its children.
-void QuadtreeNode::drawAsteroids(float x1, float z1, float x2, float z2, 
-					             float x3, float z3, float x4, float z4)
+void QuadtreeNode::drawAsteroids(const float& x1, const float& z1, const float& x2, const float& z2, 
+					             const float& x3, const float& z3, const float& x4, const float& z4)
 {
    // If the square does not intersect the frustum do nothing.
    if ( checkQuadrilateralsIntersection(x1, z1, x2, z2, x3, z3, x4, z4,
@@ -112,7 +100,7 @@ void QuadtreeNode::drawAsteroids(float x1, float z1, float x2, float z2,
          while(asteroidListIterator != asteroidList.end())
 		 {
             asteroidListIterator->draw();
-	        asteroidListIterator++;
+	        ++asteroidListIterator;
 		 }	  
 	  }
 	  else 
@@ -125,8 +113,38 @@ void QuadtreeNode::drawAsteroids(float x1, float z1, float x2, float z2,
    }
 }
 
+void QuadtreeNode::gatherAsteroid(const float& x, const float& z, vector<Asteroid>& arr)
+{
+	//if(arr[3] == 0.f) // found the point recurse up
+	//{
+		if(checkDiscRectangleIntersection(SWCornerX, SWCornerZ, SWCornerX+size, SWCornerZ-size, x, z, 5.f))
+		{
+			if (SWChild == NULL) // Square is leaf.
+			{
+				if(asteroidList.size() > 0)
+				{
+					arr.push_back(asteroidList[0]);
+					/*
+					arr[0] = asteroidList[0].getCenterX();
+					arr[1] = asteroidList[0].getCenterY();
+					arr[2] = asteroidList[0].getCenterZ();
+					arr[3] = asteroidList[0].getRadius();
+					*/
+				}
+			}
+			else
+			{
+				SWChild->gatherAsteroid(x, z, arr);
+				NWChild->gatherAsteroid(x, z, arr);
+				NEChild->gatherAsteroid(x, z, arr); 
+				SEChild->gatherAsteroid(x, z, arr);
+			}
+		}
+	//}
+}
+
 // Initialize quadtree by splitting nodes till each leaf node intersects at most one asteroid.
-void Quadtree::initialize(float x, float z, float s)
+void Quadtree::initialize(const float x, const float z, const float s)
 {
    header = new QuadtreeNode(x, z, s);
    header->setLength(length);
@@ -135,8 +153,13 @@ void Quadtree::initialize(float x, float z, float s)
 }
 
 // Routine to draw all the asteroids in the asteroid list of each leaf square that intersects the frustum.
-void Quadtree::drawAsteroids(float x1, float z1, float x2, float z2, 
-					         float x3, float z3, float x4, float z4)
+void Quadtree::drawAsteroids(const float& x1, const float& z1, const float& x2, const float& z2, 
+					         const float& x3, const float& z3, const float& x4, const float& z4)
 {
    header->drawAsteroids(x1, z1, x2, z2, x3, z3, x4, z4); 
+}
+
+void Quadtree::gatherAsteroid(const float& x, const float& z, vector<Asteroid>& arr) const
+{
+	header->gatherAsteroid(x, z, arr);
 }

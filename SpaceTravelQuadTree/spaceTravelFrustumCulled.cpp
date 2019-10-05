@@ -53,6 +53,8 @@ using namespace std;
 #define WINDOW_X 1600
 #define WINDOW_Y 800
 
+#define SIN180 sin((PI/180.f))
+
 // Globals.
 static int width, height; // Size of the OpenGL window.
 static float angle = 0.0; // Angle of the spacecraft.
@@ -79,7 +81,7 @@ GLuint InitShader(const char* vShaderFile, const char* fShaderFile);
 GLuint	myBuffer;
 
 // the asteroids and quad tree from the initial program
-Asteroid **arrayAsteroids; // Global array of asteroids.
+Asteroid *arrayAsteroids; // Global array of asteroids.
 Quadtree asteroidsQuadtree; // Global quadtree.
 
 //static long font = (long)GLUT_BITMAP_8_BY_13; // Font selection.
@@ -254,20 +256,15 @@ void resize(GLFWwindow* window, int w, int h)
 // Initialization routine.
 void setup(void) 
 {
-	int i, j = 0;
+	int i, j;
 	float initialSize;
     // create memory for each potential asteroid
 
-	// changed columns and rows
 	// todo: structure of arrays
-	arrayAsteroids = new Asteroid *[COLUMNS];
-	for (i = 0; i < COLUMNS; ++i) 
-	{
-		arrayAsteroids[i] = new Asteroid[ROWS];
-    }
+	arrayAsteroids = new Asteroid[COLUMNS*ROWS];
 
     // create the quad tree for the asteroids
-    asteroidsQuadtree.setLength(ROWS*COLUMNS);
+    asteroidsQuadtree.setLength(COLUMNS*ROWS);
 
     // create the line for the middle of the screen
     points[line_index].x = 0;
@@ -296,13 +293,15 @@ void setup(void)
 	// Position the asteroids depending on if there is an even or odd number of columns
     // so that the spacecraft faces the middle of the asteroid field.
 	const float odd = (COLUMNS % 2) ? 0 : 15.f; // changed
+
 	for (i = 0; i < COLUMNS; i++)
 	{
 		for (j = 0; j < ROWS; j++)
 		{
 			if (rand() % 100 < FILL_PROBABILITY)
 			{
-				arrayAsteroids[i][j] = Asteroid(
+				const glm::uint inn = COLUMNS * j + i;
+				arrayAsteroids[inn] = Asteroid(
 					odd + 30.0f * (-COLUMNS / 2.f + j), 
 					0.0, 
 					-40.0f - 30.0f * i, 
@@ -311,7 +310,7 @@ void setup(void)
 					rand() % 256, 
 					rand() % 256
 				);
-	   			arrayAsteroids[i][j].setIndex(index);
+	   			arrayAsteroids[inn].setIndex(index);
 				glm::uint count = 0;
 				while(count < validSpaces)
 				{
@@ -329,23 +328,14 @@ void setup(void)
 	// Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
 	if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
 	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
-
-
-	const auto arr = new Asteroid[ROWS*COLUMNS]; // new data needs to be deleted
-
-	glm::uint count = 0;
-	for (i = 0; i < COLUMNS; i++)
-	{
-		for (j = 0; j < ROWS; j++)
-		{
-			arr[count] = arrayAsteroids[i][j];
-			++count;
-		}
-	}
 	
-    asteroidsQuadtree.setArray(arr);
+    asteroidsQuadtree.setArray(arrayAsteroids);
 
 	asteroidsQuadtree.initialize( -initialSize / 2.0f, -37.0f, initialSize );
+
+	// no need to use up the memory anymore
+	x_set.clear();
+	z_set.clear();
 	// END OF OPTIMIZATIONS HERE
 
 	
@@ -392,32 +382,42 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 // Function to check if the spacecraft collides with an asteroid when the center of the base
 // of the craft is at (x, 0, z) and it is aligned at an angle a to to the -z direction.
 // Collision detection is approximate as instead of the spacecraft we use a bounding sphere.
-int asteroidCraftCollision( float x, float z, float a)
+int asteroidCraftCollision(const float& x, const float& z, const float& a)
 {
-	// todo: use the QuadTree maybe???
-   // Check for collision with each asteroid.
-   for (int i = 0; i < COLUMNS; i++)
-      for (int j = 0; j < ROWS; j++)
-		 if (arrayAsteroids[i][j].getRadius() > 0 ) // If asteroid exists.
-            if ( checkSpheresIntersection( x - 5 * sin( (PI/180.0) * a), 0.0, 
-		         z - 5 * cos( (PI/180.0) * a), 7.072, 
-		         arrayAsteroids[i][j].getCenterX(), arrayAsteroids[i][j].getCenterY(), 
-		         arrayAsteroids[i][j].getCenterZ(), arrayAsteroids[i][j].getRadius() ) )
-		       return 1;
-   return 0;
+	// Check for collision with one asteroid
+    float arr[4]{0.f,0.f,0.f,0.f};
+	vector<Asteroid> ast;
+	
+	const float x_calc = x - 5.f * sin( (PI/180.f) * a); 
+	const float z_calc = z - 5 * cos( (PI/180.f) * a);
+	
+	asteroidsQuadtree.gatherAsteroid(x_calc, z_calc, ast);
+	if (!ast.empty()) // If asteroid exists. 
+	{
+		for(auto &it : ast)
+		{
+			if ( checkSpheresIntersection(x_calc, 0.f, z_calc, 7.072f, 
+		    it.getCenterX(), it.getCenterY(), it.getCenterZ(), it.getRadius()) 
+			)
+			{
+				return 1;
+			}
+		}
+	}
+	return 0;
 }
 
 // function taken from glu
 void lookAt(
-	float eyex, 
-	float eyey, 
-	float eyez, 
-	float centerx,
-	float centery, 
-	float centerz, 
-	float upx, 
-	float upy, 
-	float upz)
+	const float& eyex, 
+	const float& eyey, 
+	const float& eyez, 
+	const float& centerx,
+	const float& centery, 
+	const float& centerz, 
+	const float& upx, 
+	const float& upy, 
+	const float& upz)
 {
 	int i;
 	glm::vec3 forward, side, up;
@@ -474,7 +474,7 @@ void lookAt(
 // Drawing routine.
 void drawScene(void)
 { 
-   int i, j;
+   int i;
    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    // Use the buffer and shader for each circle.
@@ -498,22 +498,24 @@ void drawScene(void)
    // Fixed camera 
    lookAt(0.f, 10.f, 20.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f);
 
-   if (!isFrustumCulled)
-   {
-	// Draw all the asteroids in arrayAsteroids.
-	// change to column major
-   	for (i = 0; i < COLUMNS; i++)
-		for (j = 0; j < ROWS; j++)
-			arrayAsteroids[i][j].draw();
-   }
-   else
-   {
-	   // Draw only asteroids in leaf squares of the quadtree that intersect the fixed frustum
-	   // with apex at the origin.
-	   asteroidsQuadtree.drawAsteroids(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f);
-   }
+	if (!isFrustumCulled)
+	{
+		// Draw all the asteroids in arrayAsteroids.
+		// change to column major
 
-   // off is white spaceship and on it red
+   		for (i = 0; i < COLUMNS*ROWS; i++)
+   		{
+   			arrayAsteroids[i].draw();
+   		}
+	}
+	else
+	{
+		// Draw only asteroids in leaf squares of the quadtree that intersect the fixed frustum
+		// with apex at the origin.
+		asteroidsQuadtree.drawAsteroids(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f);
+	}
+
+	// off is white spaceship and on it red
    if (isFrustumCulled)
 	glColor3f(1.0, 0.0, 0.0);
    else 
@@ -568,10 +570,9 @@ void drawScene(void)
    if (!isFrustumCulled)
    {
 	   // Draw all the asteroids in arrayAsteroids.
-   	//change column major
-	   for (i = 0; i < COLUMNS; i++)
-         for (j = 0; j < ROWS; j++)
-            arrayAsteroids[i][j].draw();
+   		//change column major
+	   for (i = 0; i < COLUMNS*ROWS; i++)
+            arrayAsteroids[i].draw();
    }
    else
    {

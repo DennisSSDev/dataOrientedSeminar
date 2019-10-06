@@ -3,10 +3,9 @@
 
 #include <vector>
 #include "Asteroid.h"
+#include "intersectionDetectionRoutines.h"
 
-using namespace std;
-
-// Quadtree node class.
+// func to draw the asteroids (BottleNeck since every sphere is a separate draw call)
 extern void drawAsteroid(const unsigned int at);
 
 struct Location
@@ -18,63 +17,177 @@ struct Location
 	unsigned int index;
 };
 
-struct AsteroidLocations
+struct QuadTreeNode
 {
-	vector<Location> l;
-};
-
-class QuadtreeNode
-{
-public:
-	QuadtreeNode(float x, float z, float s);
-	int numberAsteroidsIntersected(); // Return the number of asteroids intersecting the square.
-
-	void build(); // Recursive routine to split a square that intersects more than one asteroid; 
-				  // if it intersects at most one asteroid leave it as a leaf and add the intersecting 
-                  // asteroid, if any, to a local list of asteroids.
-
-	void drawAsteroids(const float& x1, const float& z1, const float& x2, const float& z2,   // Recursive routine to draw the asteroids
-					  const float& x3, const float& z3, const float& x4, const float& z4);  // in a square's list if the square is a
-																							// leaf and it intersects the frustum (which
-																							// is specified by the input parameters); 
-																							// if the square is not a leaf, the routine
-																							// recursively calls itself on its children.
-	void gatherAsteroid(const float& x, const float& z, AsteroidLocations& al /*OUT*/);
-	void setArray(AsteroidLocations al) { this->asteroidLocations = al; }
-
-private: 
+	QuadTreeNode(){size = 0;}
+	QuadTreeNode(const float x, const float z, const float s)
+	{
+		SWCornerX = x; SWCornerZ = z; size = s;
+		SWChild = NWChild = NEChild = SEChild = nullptr;
+	}
+	
+	QuadTreeNode *SWChild, *NWChild, *NEChild, *SEChild; // Children nodes.
+	
+	std::vector<Location> asteroidLocations; // global list of asteroid locations to process (reduced every time the tree is subdivided)
+	std::vector<Location> nodeAsteroids; // local list of asteroid locations, leaf nodes store 1 item
+	
 	float SWCornerX, SWCornerZ; // x and z co-ordinates of the SW corner of the square.
 	float size; // Side length of square.
-	QuadtreeNode *SWChild, *NWChild, *NEChild, *SEChild; // Children nodes.
-	AsteroidLocations asteroidLocations; // global list of asteroid locations
-	AsteroidLocations nodeAsteroids; // local list of asteroid locations
-	friend class Quadtree;
 };
 
-// Quadtree class.
-class Quadtree
+struct QuadTree
 {
-public:
-   Quadtree() { header = NULL; } // Constructor.
-   void initialize(float x, float z, float s); // Initialize quadtree by splitting nodes
-                                               // till each leaf node intersects at
-                                               // most one asteroid.
+	QuadTree(){length = 0;}
 
-   void drawAsteroids(const float& x1, const float& z1, const float& x2, const float& z2,  // Routine to draw all the asteroids in the  
-					  const float& x3, const float& z3, const float& x4, const float& z4); // asteroid list of each leaf square that
-																						   // intersects the frustum.
-   void gatherAsteroid(const float& x, const float& z, AsteroidLocations& al) const;
-   void setLength(int length) { this->length = length; }
-   void setArray(const Asteroids& arrayAsteroids)
-   {
-	   this->arrayAsteroids = arrayAsteroids;
-   }
-
-private:
-	QuadtreeNode *header;
-	int length;
+	QuadTreeNode header; // starting node of the quad tree
 	Asteroids arrayAsteroids; // Global array of asteroids.
+	int length;
 };
 
+
+static int NumberAsteroidsIntersectedSystem(QuadTreeNode& node)
+{
+	int numVal = 0;
+	
+	const auto& asteroidLocations = node.asteroidLocations;
+	auto& nodeAsteroids = node.nodeAsteroids;
+	
+	const unsigned int& lSize = asteroidLocations.size();
+	const float& SWCornerX = node.SWCornerX;
+	const float& SWCornerZ = node.SWCornerZ;
+	const float& NECornerX = SWCornerX + node.size;
+	const float& NECornerZ = SWCornerZ - node.size;
+	
+	for (unsigned int i = 0; i < lSize; i++)
+	{
+		const Location& loc = asteroidLocations[i];
+		const float& radius = loc.rds;
+		if (radius > 0.f)
+   		{
+			const float& c_x = loc.x;
+			const float& c_z = loc.z;
+			
+			if (checkDiscRectangleIntersection( SWCornerX, SWCornerZ, NECornerX, NECornerZ,
+					c_x, c_z, radius )
+				)
+   			{
+   				nodeAsteroids.emplace_back(loc); 
+				++numVal;
+   			}
+   		}
+	}
+	return numVal;
+}
+
+static void BuildSystem(QuadTreeNode& node)
+{
+	const glm::uint length = NumberAsteroidsIntersectedSystem(node);
+	if(length > 1)
+	{
+		const float& size = node.size; 
+		const float& SWCornerZ = node.SWCornerZ;
+		const float& SWCornerX = node.SWCornerX;
+		
+		const float& halfSize = size / 2.f;
+		const float& cornerHalfSize = SWCornerZ - halfSize;
+		const float& otherCornerHalfSize = SWCornerX + halfSize;
+		
+		node.SWChild = new QuadTreeNode(SWCornerX, SWCornerZ, halfSize);
+		node.SWChild->asteroidLocations = node.nodeAsteroids;
+		
+		node.NWChild = new QuadTreeNode(SWCornerX, cornerHalfSize, halfSize);
+		node.NWChild->asteroidLocations = node.nodeAsteroids;
+
+		node.NEChild = new QuadTreeNode(otherCornerHalfSize, cornerHalfSize, halfSize);
+		node.NEChild->asteroidLocations = node.nodeAsteroids;
+
+		node.SEChild = new QuadTreeNode(otherCornerHalfSize, SWCornerZ, halfSize);
+		node.SEChild->asteroidLocations = node.nodeAsteroids;
+
+		// no longer need that data, passed down to child
+		node.nodeAsteroids.clear();
+		node.asteroidLocations.clear();
+		
+		BuildSystem(*node.SWChild); BuildSystem(*node.NWChild); BuildSystem(*node.NEChild); BuildSystem(*node.SEChild); 
+	}
+}
+
+static void GatherAsteroidSystem(const float& x, const float& z, const QuadTreeNode& node, vector<Location>& al /*OUT*/)
+{
+	const float& size = node.size; 
+	const float& SWCornerZ = node.SWCornerZ;
+	const float& SWCornerX = node.SWCornerX;
+		
+	const float& corner = SWCornerZ - size;
+	const float& otherCorner = SWCornerX + size;
+	
+	if(checkDiscRectangleIntersection(SWCornerX, SWCornerZ, otherCorner, corner, x, z, 5.f))
+	{
+		const auto& SWChild = node.SWChild;
+		if (SWChild == NULL) // Square is leaf.
+		{
+			const auto& asteroids = node.nodeAsteroids;
+			if(!asteroids.empty())
+			{
+				al.push_back(asteroids[0]);
+			}
+		}
+		else
+		{
+			GatherAsteroidSystem(x, z, *SWChild, al);
+			GatherAsteroidSystem(x, z, *node.NWChild, al);
+			GatherAsteroidSystem(x, z, *node.NEChild, al);
+			GatherAsteroidSystem(x, z, *node.SEChild, al);
+		}
+	}
+};
+
+static void DrawAsteroidsSystem(const float& x1, const float& z1, const float& x2, const float& z2,  // Routine to draw all the asteroids in the  
+					  const float& x3, const float& z3, const float& x4, const float& z4, const QuadTreeNode& node)
+{
+	const float& size = node.size; 
+	const float& SWCornerZ = node.SWCornerZ;
+	const float& SWCornerX = node.SWCornerX;
+		
+	const float& corner = SWCornerZ - size;
+	const float& otherCorner = SWCornerX + size;
+	
+	const auto& nodeAsteroids = node.nodeAsteroids;
+	const auto& SWChild = node.SWChild;
+	 // If the square does not intersect the frustum do nothing.
+   if ( checkQuadrilateralsIntersection(x1, z1, x2, z2, x3, z3, x4, z4,
+								        SWCornerX, SWCornerZ, SWCornerX, corner,
+								        otherCorner, corner, otherCorner, SWCornerZ) )
+   {
+      if (SWChild == NULL) // Square is leaf.
+	  {
+		 if(!nodeAsteroids.empty())
+		 {
+			drawAsteroid(nodeAsteroids[0].index);
+		 }
+         return;
+	  }
+	  DrawAsteroidsSystem(x1, z1, x2, z2, x3, z3, x4, z4, *SWChild);
+	  DrawAsteroidsSystem(x1, z1, x2, z2, x3, z3, x4, z4, *node.NWChild);
+	  DrawAsteroidsSystem(x1, z1, x2, z2, x3, z3, x4, z4, *node.NEChild);
+	  DrawAsteroidsSystem(x1, z1, x2, z2, x3, z3, x4, z4, *node.SEChild); 
+   }
+};																						
+
+static void QuadTreeInitializeSystem(const float x, const float z, const float s, QuadTree& quadTree)
+{
+	quadTree.header = QuadTreeNode(x, z, s);
+	vector<Location> asteroidData;
+	const unsigned int& length = quadTree.length;
+	const auto& globalAsteroids = quadTree.arrayAsteroids;
+	asteroidData.resize(length); // preallocate to not waste time resizing
+	// grab the neccessary data instead of copying over everything
+	for(unsigned int i = 0; i < length; ++i)
+	{
+		asteroidData[i] = { globalAsteroids.x[i], globalAsteroids.y[i], globalAsteroids.z[i], globalAsteroids.rds[i], i };
+	}
+	quadTree.header.asteroidLocations = asteroidData;
+	BuildSystem(quadTree.header);
+}
 
 #endif

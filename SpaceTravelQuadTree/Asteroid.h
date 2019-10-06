@@ -4,7 +4,6 @@
 #define PI 3.14159265
 #define ROWS 100  // Number of rows of asteroids.
 #define COLUMNS 100 // Number of columns of asteroids.
-#include <glm/glm.hpp>
 
 #define SPHERE_VERTEX_COUNT 288
 #define SPHERE_SIZE 5.0f

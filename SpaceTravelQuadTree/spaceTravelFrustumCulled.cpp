@@ -79,7 +79,7 @@ static GLuint myBuffer;
 
 // the asteroids and quad tree from the initial program
 static Asteroids asteroids = Asteroids(); // Global array of asteroids.
-static Quadtree asteroidsQuadtree; // Global quadtree.
+static QuadTree asteroidsQuadTree = QuadTree(); // Global quadtree.
 
 // function obtained from tutorial at:
 // http://www.freemancw.com/2012/06/opengl-cone-function/
@@ -246,7 +246,7 @@ void setup(void)
     // create memory for each potential asteroid
 	
     // create the quad tree for the asteroids
-    asteroidsQuadtree.setLength(COLUMNS*ROWS);
+	asteroidsQuadTree.length = COLUMNS*ROWS;
 
     // create the line for the middle of the screen
     points[line_index].x = 0;
@@ -275,7 +275,6 @@ void setup(void)
 	// Position the asteroids depending on if there is an even or odd number of columns
     // so that the spacecraft faces the middle of the asteroid field.
 	const float odd = (COLUMNS % 2) ? 0 : 15.f; // changed
-
 	for (i = 0; i < COLUMNS; i++)
 	{
 		for (j = 0; j < ROWS; j++)
@@ -309,9 +308,9 @@ void setup(void)
 	// Initialize global asteroidsQuadtree - the root square bounds the entire asteroid field.
 	if (ROWS <= COLUMNS) initialSize = (COLUMNS - 1) * 30.0f + 6.0f;
 	else initialSize = (ROWS - 1) * 30.0f + 6.0f;
-	
-    asteroidsQuadtree.setArray(asteroids);
-	asteroidsQuadtree.initialize( -initialSize / 2.0f, -37.0f, initialSize );
+
+	asteroidsQuadTree.arrayAsteroids = asteroids;
+	QuadTreeInitializeSystem(-initialSize / 2.0f, -37.f, initialSize, asteroidsQuadTree);
 	
 	// initialize the graphics
 	glEnable(GL_DEPTH_TEST);
@@ -344,6 +343,10 @@ void setup(void)
 	GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+	// enter polygon mode ONCE!
+	glPolygonMode(GL_FRONT, GL_LINE);
+	glPolygonMode(GL_BACK, GL_LINE);
 }
 
 // Function to check if two spheres centered at (x1,y1,z1) and (x2,y2,z2) with
@@ -356,23 +359,22 @@ int checkSpheresIntersection(float x1, float y1, float z1, float r1,
 
 // Function to check if the spacecraft collides with an asteroid when the center of the base
 // of the craft is at (x, 0, z) and it is aligned at an angle a to to the -z direction.
+// Utilized QuadTree to reduce the amount of collision checks
 // Collision detection is approximate as instead of the spacecraft we use a bounding sphere.
 int asteroidCraftCollision(const float& x, const float& z, const float& a)
 {
-	// Check for collision with one asteroid
-	AsteroidLocations astl;
+	// Check for collision with up to 4 asteroids by using the quad tree
+	vector<Location> astl;
 	
 	const float x_calc = x - 5.f * sin((PI/180.f) * a); 
 	const float z_calc = z - 5 * cos((PI/180.f) * a);
-	
-	asteroidsQuadtree.gatherAsteroid(x_calc, z_calc, astl);
-	if (!astl.l.empty()) // If asteroid exists. 
+	GatherAsteroidSystem(x_calc, z_calc, asteroidsQuadTree.header, astl /*OUT*/);
+	if (!astl.empty())
 	{
-		for(auto &it : astl.l)
+		for(auto &it : astl)
 		{
 			if (checkSpheresIntersection(x_calc, 0.f, z_calc, 7.072f, 
-		    it.x, it.y, it.z, it.rds) 
-			)
+		    it.x, it.y, it.z, it.rds))
 			{
 				return 1;
 			}
@@ -444,7 +446,11 @@ void lookAt(
 	glTranslated(-eyex, -eyey, -eyez);
 }
 
-static void drawAllAsteroids()
+// Function that loops through every asteroid and draws it
+// The Draw calls are the bottleneck of the application
+// There is a branch on github that solved the rendering issue:
+// https://github.com/DennisSSDev/dataOrientedSeminar/tree/OptimizedRender
+static void DrawAllAsteroidsSystem()
 {
 	for(int i = 0; i < ROWS*COLUMNS; i++)
 	{
@@ -455,19 +461,16 @@ static void drawAllAsteroids()
 			glTranslatef(asteroids.x[i], asteroids.y[i], asteroids.z[i]);
 			glColor3ub(asteroids.r[i], asteroids.g[i], asteroids.b[i]);
 			
-			glPolygonMode(GL_FRONT, GL_LINE);
-			glPolygonMode(GL_BACK, GL_LINE);
-			
 			glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[i], SPHERE_VERTEX_COUNT);
-			
-			glPolygonMode(GL_FRONT, GL_FILL);
-			glPolygonMode(GL_BACK, GL_FILL);
+		
 
 			glPopMatrix();
 		}
 	}
 }
 
+// Draws only 1 asteroid.
+// This is used mainly by the QuadTree to reduce the draw calls.
 void drawAsteroid(const unsigned int at)
 {
 	if(asteroids.rds[at] > 0.f)
@@ -477,17 +480,12 @@ void drawAsteroid(const unsigned int at)
 		glTranslatef(asteroids.x[at], asteroids.y[at], asteroids.z[at]);
 		glColor3ub(asteroids.r[at], asteroids.g[at], asteroids.b[at]);
 			
-		glPolygonMode(GL_FRONT, GL_LINE);
-		glPolygonMode(GL_BACK, GL_LINE);
-			
 		glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[at], SPHERE_VERTEX_COUNT);
-			
-		glPolygonMode(GL_FRONT, GL_FILL);
-		glPolygonMode(GL_BACK, GL_FILL);
 
 		glPopMatrix();
 	}
 }
+
 
 // Drawing routine.
 void drawScene(void)
@@ -514,13 +512,13 @@ void drawScene(void)
 
 	if (!isFrustumCulled)
 	{
-   		drawAllAsteroids();
+   		DrawAllAsteroidsSystem();
 	}
 	else
 	{
 		// Draw only asteroids in leaf squares of the quadtree that intersect the fixed frustum
 		// with apex at the origin.
-		asteroidsQuadtree.drawAsteroids(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f);
+		DrawAsteroidsSystem(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f, asteroidsQuadTree.header);
 	}
 
 	// off is white spaceship and on it red
@@ -537,13 +535,8 @@ void drawScene(void)
    glPushMatrix();
    glRotatef(-90.f, 1.f, 0.f, 0.f); // To make the spacecraft point down the $z$-axis initially.
 
-   // Turn on wireframe mode
-   glPolygonMode(GL_FRONT, GL_LINE);
-   glPolygonMode(GL_BACK, GL_LINE);
    glDrawArrays(GL_TRIANGLE_FAN, cone_index, CONE_VERTEX_COUNT);
-   // Turn off wireframe mode
-   glPolygonMode(GL_FRONT, GL_FILL);
-   glPolygonMode(GL_BACK, GL_FILL);
+
    glPopMatrix();
    // End left viewport.
    
@@ -578,7 +571,7 @@ void drawScene(void)
 
    if (!isFrustumCulled)
    {
-	   drawAllAsteroids();
+	   DrawAllAsteroidsSystem();
    }
    else
    {
@@ -590,16 +583,15 @@ void drawScene(void)
    		const float zCosAngleDeg = cos((PI / 180.0) * (45.0 + angle));
    		const float xSinAngleDeg = sin((PI / 180.0) * (45.0 - angle));
    		const float cosAngleDeg = cos((PI / 180.0) * (45.0 - angle));
-   	
-	   asteroidsQuadtree.drawAsteroids(xVal - 7.072 * sinAngleDeg,
+
+   		DrawAsteroidsSystem(xVal - 7.072 * sinAngleDeg,
 		   zVal - 7.072 * zCosAngleDeg,
 		   xVal - 353.6 * sinAngleDeg,
 		   zVal - 353.6 * zCosAngleDeg,
 		   xVal + 353.6 * xSinAngleDeg,
 		   zVal - 353.6 * cosAngleDeg,
 		   xVal + 7.072 * xSinAngleDeg,
-		   zVal - 7.072 * cosAngleDeg
-	   );
+		   zVal - 7.072 * cosAngleDeg, asteroidsQuadTree.header);
    }
    // End right viewport.
 

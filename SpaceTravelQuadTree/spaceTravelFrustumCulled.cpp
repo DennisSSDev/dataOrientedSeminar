@@ -24,6 +24,7 @@
 // 
 // Sumanta Guha.
 // C/C++ version: Jessica Bayliss
+// Data Oriented Version: Dennis Slavinsky
 ////////////////////////////////////////////////////////////////////////////////////// 
 #include <malloc.h>
 #include <cstdlib>
@@ -68,18 +69,23 @@ static int isCollision = 0; // Is there collision between the spacecraft and an 
 // initial indices where data starts getting drawn for different data types
 static int cone_index = 0;
 static int line_index = cone_index + CONE_VERTEX_COUNT;
-static int sphere_index = line_index + LINE_VERTEX_COUNT;
+
+constexpr int TOTAL = COLUMNS*ROWS;
 
 // shader stuff
 // addition of all rows/cols for asteroid vertices + spaceship vertices + line vertices  
-static glm::vec3 points[CONE_VERTEX_COUNT+LINE_VERTEX_COUNT+SPHERE_VERTEX_COUNT*ROWS*COLUMNS];
+static glm::vec3 points[SPHERE_VERTEX_COUNT];
+static glm::vec3 lineConePoints[LINE_VERTEX_COUNT + CONE_VERTEX_COUNT];
+static glm::vec3 positions[(ROWS*COLUMNS)*2];
 static GLuint myShaderProgram;
 GLuint InitShader(const char* vShaderFile, const char* fShaderFile);
 static GLuint myBuffer;
 
+unsigned int quadVAO, quadVBO;
+
 // the asteroids and quad tree from the initial program
-static Asteroids asteroids = Asteroids(); // Global array of asteroids.
-static Quadtree asteroidsQuadtree; // Global quadtree.
+static Asteroids asteroids = Asteroids();
+static Quadtree asteroidsQuadtree;
 
 // function obtained from tutorial at:
 // http://www.freemancw.com/2012/06/opengl-cone-function/
@@ -123,9 +129,9 @@ static void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 	// draw cone top
 	int i = 0;
 	int o = offset + i;
-	points[o].x = a.x;
-	points[o].y = a.y;
-	points[o].z = a.z;
+	lineConePoints[o].x = a.x;
+	lineConePoints[o].y = a.y;
+	lineConePoints[o].z = a.z;
 
 	for (i = 1; i < n+1; ++i) {
 		o = i + offset;
@@ -135,9 +141,9 @@ static void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 	}
 
 	o = i + offset;
-	points[o].x = pts[0].x;
-	points[o].y = pts[0].y;
-	points[o].z = pts[0].z;
+	lineConePoints[o].x = pts[0].x;
+	lineConePoints[o].y = pts[0].y;
+	lineConePoints[o].z = pts[0].z;
 }
 
 // function derived from tutorial at:
@@ -172,7 +178,6 @@ static glm::uint CreateSphere(const float& R, const float& H, const float& K, co
 			const float p8 = cos((a + space) / 180 * PI);
 
 			glm::uint nOffset = n + offset;
-		
 			
 			points[nOffset].x = R * p1 * p2 - H;
 			points[nOffset].y = R * p3 * p2 + K;
@@ -246,27 +251,28 @@ void setup(void)
     // create memory for each potential asteroid
 	
     // create the quad tree for the asteroids
-    asteroidsQuadtree.setLength(COLUMNS*ROWS);
+    asteroidsQuadtree.setLength(TOTAL);
 
     // create the line for the middle of the screen
-    points[line_index].x = 0;
-    points[line_index].y = -5;
-    points[line_index].z = -6;
-    points[line_index + 1].x = 0;
-    points[line_index + 1].y = 5;
-    points[line_index + 1].z = -6;
+    
+    lineConePoints[line_index].x = 0;
+    lineConePoints[line_index].y = -5;
+    lineConePoints[line_index].z = -6;
+    lineConePoints[line_index + 1].x = 0;
+    lineConePoints[line_index + 1].y = 5;
+    lineConePoints[line_index + 1].z = -6;
 
     // create the cone for a spaceship
     const glm::vec3 direction( 0, 1, 0 );
     const glm::vec3 apex(0, 10, 0);
 
 	// no need to optimize, has low impact as only 1 cone is ever created
-    CreateCone(direction, apex, 10, 5, 10, cone_index);
+
+    //CreateCone(direction, apex, 10, 5, 10, cone_index);
 
     // create where the spheres are going in the field   
-    int index = sphere_index;
 	// calculate the sphere once - reuse the data after
-	const glm::uint validSpaces = CreateSphere(SPHERE_SIZE, 0, 0, 0, index);
+	CreateSphere(SPHERE_SIZE, 0, 0, 0, 0);
 
     // Initialize global arrayAsteroids.
     // 
@@ -275,7 +281,6 @@ void setup(void)
 	// Position the asteroids depending on if there is an even or odd number of columns
     // so that the spacecraft faces the middle of the asteroid field.
 	const float odd = (COLUMNS % 2) ? 0 : 15.f; // changed
-
 	for (i = 0; i < COLUMNS; i++)
 	{
 		for (j = 0; j < ROWS; j++)
@@ -291,17 +296,6 @@ void setup(void)
 				asteroids.r[inn] = rand() % 256;
 				asteroids.g[inn] = rand() % 256;
 				asteroids.b[inn] = rand() % 256;
-				
-				asteroids.i[inn] = index;
-				
-				glm::uint count = 0;
-				
-				while(count < validSpaces)
-				{
-					points[count + index] = points[count + sphere_index];
-					count++;
-				}
-	   			index += SPHERE_VERTEX_COUNT;
 			}
 		}
 	}
@@ -322,28 +316,53 @@ void setup(void)
 	glFrustum(-5.0, 5.0, -5.0, 5.0, 5.0, 250.0);
 	glMatrixMode(GL_MODELVIEW);
 
-	
 	GLuint vbo;
 	glGenBuffers(1, &vbo);
 	myBuffer = vbo;
 	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
-	// Create a vertex array object
-	GLuint vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
+	for(i = 0; i < TOTAL; i++)
+	{
+		positions[i] = glm::vec3(asteroids.x[i], asteroids.y[i], asteroids.z[i]);
+	}
+	int count = 0;
+	for(i = TOTAL; i < TOTAL*2; i++)
+	{
+		positions[i] = glm::vec3(asteroids.r[count], asteroids.g[count], asteroids.b[count]);
+		++count;
+	}
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * TOTAL * 2, &positions[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	
 	// Load shaders and use the resulting shader program
-	GLuint program = InitShader("vshader.glsl", "fshader.glsl");
+	const GLuint program = InitShader("vshader.glsl", "fshader.glsl");
 	myShaderProgram = program;
-	glUseProgram(myShaderProgram);
 
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+	
+	const GLuint sphereLoc = glGetAttribLocation(myShaderProgram, "vSpherePosition");
+    glEnableVertexAttribArray(sphereLoc);
+    glVertexAttribPointer(sphereLoc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+	const GLuint vColor = glGetAttribLocation(myShaderProgram, "vColor");
+	glEnableVertexAttribArray(vColor);
+	glVertexAttribPointer(vColor, 3, GL_FLOAT, GL_FALSE, 0, (void*)( TOTAL * sizeof(glm::vec3) ) );
+	
 	// Initialize the vertex position attribute from the vertex shader
-	GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
+	const GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
 	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glVertexAttribDivisor(loc, 1);
+	
+	// Turn on wireframe mode ONCE!
+	glPolygonMode(GL_FRONT, GL_LINE);
+	glPolygonMode(GL_BACK, GL_LINE);
 }
 
 // Function to check if two spheres centered at (x1,y1,z1) and (x2,y2,z2) with
@@ -444,30 +463,6 @@ void lookAt(
 	glTranslated(-eyex, -eyey, -eyez);
 }
 
-static void drawAllAsteroids()
-{
-	for(int i = 0; i < ROWS*COLUMNS; i++)
-	{
-		if(asteroids.rds[i] > 0.f)
-		{
-			glPushMatrix();
-			
-			glTranslatef(asteroids.x[i], asteroids.y[i], asteroids.z[i]);
-			glColor3ub(asteroids.r[i], asteroids.g[i], asteroids.b[i]);
-			
-			glPolygonMode(GL_FRONT, GL_LINE);
-			glPolygonMode(GL_BACK, GL_LINE);
-			
-			glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[i], SPHERE_VERTEX_COUNT);
-			
-			glPolygonMode(GL_FRONT, GL_FILL);
-			glPolygonMode(GL_BACK, GL_FILL);
-
-			glPopMatrix();
-		}
-	}
-}
-
 void drawAsteroid(const unsigned int at)
 {
 	if(asteroids.rds[at] > 0.f)
@@ -481,7 +476,6 @@ void drawAsteroid(const unsigned int at)
 		glPolygonMode(GL_BACK, GL_LINE);
 			
 		glDrawArrays(GL_TRIANGLE_FAN, asteroids.i[at], SPHERE_VERTEX_COUNT);
-			
 		glPolygonMode(GL_FRONT, GL_FILL);
 		glPolygonMode(GL_BACK, GL_FILL);
 
@@ -492,29 +486,24 @@ void drawAsteroid(const unsigned int at)
 // Drawing routine.
 void drawScene(void)
 { 
-   int i;
-   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	int i;
+	glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   // Use the buffer and shader for each circle.
-   glUseProgram(myShaderProgram);
-   glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
+	// Use the vertex array and shader for each circle.
+	glUseProgram(myShaderProgram);
+	glBindVertexArray(quadVAO);
 
-   // Initialize the vertex position attribute from the vertex shader.
-    GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
-    glEnableVertexAttribArray(loc);
-    glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-   // Begin left viewport.
-   glViewport (0, 0, width / 2.0,  height); 
-   glLoadIdentity();
+	// Begin left viewport.
+	glViewport (0, 0, width / 2.0,  height); 
+	glLoadIdentity();
 
    
-   // Fixed camera 
-   lookAt(0.f, 10.f, 20.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f);
+	// Fixed camera 
+	lookAt(0.f, 10.f, 20.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f);
 
 	if (!isFrustumCulled)
 	{
-   		drawAllAsteroids();
+		glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, SPHERE_VERTEX_COUNT, COLUMNS*ROWS);
 	}
 	else
 	{
@@ -524,44 +513,38 @@ void drawScene(void)
 	}
 
 	// off is white spaceship and on it red
-   if (isFrustumCulled)
-	glColor3f(1.0, 0.0, 0.0);
-   else 
-	glColor3f(1.0, 1.0, 1.0);
+	if (isFrustumCulled)
+		glColor3f(1.0, 0.0, 0.0);
+	else 
+		glColor3f(1.0, 1.0, 1.0);
 
-   // spacecraft moves and so we translate/rotate according to the movement
-   glPushMatrix();
-   glTranslatef(xVal, 0, zVal);
-   glRotatef(angle, 0.0, 1.0, 0.0);
+	// spacecraft moves and so we translate/rotate according to the movement
+	glPushMatrix();
+	glTranslatef(xVal, 0, zVal);
+	glRotatef(angle, 0.0, 1.0, 0.0);
 
-   glPushMatrix();
-   glRotatef(-90.f, 1.f, 0.f, 0.f); // To make the spacecraft point down the $z$-axis initially.
+	glPushMatrix();
+	glRotatef(-90.f, 1.f, 0.f, 0.f); // To make the spacecraft point down the $z$-axis initially.
 
-   // Turn on wireframe mode
-   glPolygonMode(GL_FRONT, GL_LINE);
-   glPolygonMode(GL_BACK, GL_LINE);
-   glDrawArrays(GL_TRIANGLE_FAN, cone_index, CONE_VERTEX_COUNT);
-   // Turn off wireframe mode
-   glPolygonMode(GL_FRONT, GL_FILL);
-   glPolygonMode(GL_BACK, GL_FILL);
-   glPopMatrix();
-   // End left viewport.
+	glDrawArrays(GL_TRIANGLE_FAN, cone_index, CONE_VERTEX_COUNT);
+	glPopMatrix();
+	// End left viewport.
    
 	// Begin right viewport.
 	//=====================================
 	//
 	//
-   glViewport(width / 2.0, 0, width / 2.0, height);
-   glLoadIdentity();
+	glViewport(width / 2.0, 0, width / 2.0, height);
+	glLoadIdentity();
 
    // draw the line in the middle to separate the two viewports
-   glPushMatrix();
-   glTranslatef(-6.f, 0.f, 0.f);
-   glColor3f(1.f, 1.f, 1.f);
-   glLineWidth(2.0);
-   glDrawArrays(GL_LINE_STRIP, line_index, LINE_VERTEX_COUNT);
-   glLineWidth(1.0);
-   glPopMatrix();
+	glPushMatrix();
+	glTranslatef(-6.f, 0.f, 0.f);
+	glColor3f(1.f, 1.f, 1.f);
+	glLineWidth(2.0);
+	glDrawArrays(GL_LINE_STRIP, line_index, LINE_VERTEX_COUNT);
+	glLineWidth(1.0);
+	glPopMatrix();
 
    // Locate the camera at the tip of the cone and pointing in the direction of the cone.
 	const float sinDegree = sin( (PI/180.0) * angle);
@@ -576,12 +559,12 @@ void drawScene(void)
 			 1.0, 
 			 0.0);
 
-   if (!isFrustumCulled)
-   {
-	   drawAllAsteroids();
-   }
-   else
-   {
+	if (!isFrustumCulled)
+	{
+   		glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, SPHERE_VERTEX_COUNT, COLUMNS*ROWS);
+	}
+	else
+	{
 	   // Draw only asteroids in leaf squares of the quadtree that intersect the frustum
 	   // "carried" by the spacecraft with apex at its tip and oriented with its axis
 	   // along the spacecraft's axis.
@@ -600,9 +583,9 @@ void drawScene(void)
 		   xVal + 7.072 * xSinAngleDeg,
 		   zVal - 7.072 * cosAngleDeg
 	   );
-   }
-   // End right viewport.
-
+	}
+	glBindVertexArray(0);
+	// End right viewport.
 }
 
 void keyInput(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -711,4 +694,3 @@ int main(int argc, char **argv)
 	glfwTerminate();
 	return 0;
 }
-

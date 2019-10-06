@@ -16,7 +16,7 @@ struct Asteroids
 	float y[ROWS*COLUMNS];
 	float z[ROWS*COLUMNS];
 	// index
-	float i[ROWS*COLUMNS];
+	int i[ROWS*COLUMNS];
 	// radius
 	float rds[ROWS*COLUMNS];
 	//colors

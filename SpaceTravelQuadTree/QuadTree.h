@@ -1,11 +1,10 @@
-#ifndef QuadTree_239847
-#define QuadTree_239847
+#pragma once
 
 #include <vector>
 #include "Asteroid.h"
 #include "intersectionDetectionRoutines.h"
 
-// func to draw the asteroids (BottleNeck since every sphere is a separate draw call)
+// func to draw the asteroids (Bottleneck since every sphere is a separate draw call)
 extern void drawAsteroid(const unsigned int at);
 
 struct Location
@@ -44,7 +43,9 @@ struct QuadTree
 	int length;
 };
 
-
+/**
+ * System for detecting how many asteroids are within the bounds of a QuadTree Node
+ */
 static int NumberAsteroidsIntersectedSystem(QuadTreeNode& node)
 {
 	int numVal = 0;
@@ -79,6 +80,10 @@ static int NumberAsteroidsIntersectedSystem(QuadTreeNode& node)
 	return numVal;
 }
 
+/**
+ * System for creating the QuadTree
+ * @param node - The head of the QuadTree
+ */
 static void BuildSystem(QuadTreeNode& node)
 {
 	const glm::uint length = NumberAsteroidsIntersectedSystem(node);
@@ -111,7 +116,10 @@ static void BuildSystem(QuadTreeNode& node)
 		BuildSystem(*node.SWChild); BuildSystem(*node.NWChild); BuildSystem(*node.NEChild); BuildSystem(*node.SEChild); 
 	}
 }
-
+/**
+ * System that detects which asteroids should be considered for collision checks
+ * @param al output vector of the asteroid locations to consider collision
+ */
 static void GatherAsteroidSystem(const float& x, const float& z, const QuadTreeNode& node, vector<Location>& al /*OUT*/)
 {
 	const float& size = node.size; 
@@ -142,6 +150,9 @@ static void GatherAsteroidSystem(const float& x, const float& z, const QuadTreeN
 	}
 };
 
+/**
+ * System for Drawing asteroids based on the QuadTree
+ */
 static void DrawAsteroidsSystem(const float& x1, const float& z1, const float& x2, const float& z2,  // Routine to draw all the asteroids in the  
 					  const float& x3, const float& z3, const float& x4, const float& z4, const QuadTreeNode& node)
 {
@@ -181,7 +192,8 @@ static void QuadTreeInitializeSystem(const float x, const float z, const float s
 	const unsigned int& length = quadTree.length;
 	const auto& globalAsteroids = quadTree.arrayAsteroids;
 	asteroidData.resize(length); // preallocate to not waste time resizing
-	// grab the neccessary data instead of copying over everything
+	
+	// grab the necessary data instead of copying over everything
 	for(unsigned int i = 0; i < length; ++i)
 	{
 		asteroidData[i] = { globalAsteroids.x[i], globalAsteroids.y[i], globalAsteroids.z[i], globalAsteroids.rds[i], i };
@@ -189,5 +201,3 @@ static void QuadTreeInitializeSystem(const float x, const float z, const float s
 	quadTree.header.asteroidLocations = asteroidData;
 	BuildSystem(quadTree.header);
 }
-
-#endif

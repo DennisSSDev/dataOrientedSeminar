@@ -8,14 +8,6 @@
 // Frustum culling is implemented by means of a quadtree data structure.
 // 
 // COMPILE NOTE: File intersectionDetectionRoutines.cpp must be in the same folder.
-// EXECUTION NOTE: If ROWS and COLUMNS are large the quadtree takes time to build so
-//                 the display may take several seconds to come up.
-//
-// User-defined constants: 
-// ROWS is the number of rows of  asteroids.
-// COLUMNS is the number of columns of asteroids.
-// FILL_PROBABILITY is the percentage probability that a particular row-column slot
-// will be filled with an asteroid.
 //
 // Interaction:
 // Press the left/right arrow keys to turn the craft.
@@ -24,17 +16,14 @@
 // 
 // Sumanta Guha.
 // C/C++ version: Jessica Bayliss
-////////////////////////////////////////////////////////////////////////////////////// 
-#include <malloc.h>
-#include <cstdlib>
+// Data Oriented Version: Dennis Slavinsky
+//////////////////////////////////////////////////////////////////////////////////////
+
 #include <ctime> 
-#include <cmath>
 #include <iostream>
-#include <fstream>
 #include <GL/glew.h>
 #include <GL/glfw3.h>
 #include <glm/glm.hpp>
-#include <vector>
 #include "Asteroid.h"
 #include "QuadTree.h"
 
@@ -44,12 +33,8 @@ using namespace std;
 #pragma comment ( lib, "glew32.lib" )
 #pragma comment ( lib, "glfw3.lib" )
 
-
-#define FILL_PROBABILITY 100 // Percentage probability that a particular row-column slot will be 
-                             // filled with an asteroid. It should be an integer between 0 and 100.
-#define WINDOW_X 1600
-#define WINDOW_Y 800
-
+constexpr auto WINDOW_X = 1600;
+constexpr auto WINDOW_Y = 800;
 
 // Globals.
 static int width, height; // Size of the OpenGL window.
@@ -61,8 +46,8 @@ static int isCollision = 0; // Is there collision between the spacecraft and an 
 
 // vertex counting for where everything goes in the global array
 // fixed number of vertices for cone and sphere
-#define CONE_VERTEX_COUNT 12
-#define LINE_VERTEX_COUNT 2
+constexpr auto CONE_VERTEX_COUNT = 12;
+constexpr auto LINE_VERTEX_COUNT = 2;
 // #define SPHERE_VERTEX_COUNT 288 // moved to Asteroids.h because asteroids draw themselves
 
 // initial indices where data starts getting drawn for different data types
@@ -76,10 +61,11 @@ static glm::vec3 points[CONE_VERTEX_COUNT+LINE_VERTEX_COUNT+SPHERE_VERTEX_COUNT*
 static GLuint myShaderProgram;
 GLuint InitShader(const char* vShaderFile, const char* fShaderFile);
 static GLuint myBuffer;
+static GLuint vPosLoc;
 
 // the asteroids and quad tree from the initial program
 static Asteroids asteroids = Asteroids(); // Global array of asteroids.
-static QuadTree asteroidsQuadTree = QuadTree(); // Global quadtree.
+static QuadTree asteroidsQuadTree = QuadTree(); // Global QuadTree.
 
 // function obtained from tutorial at:
 // http://www.freemancw.com/2012/06/opengl-cone-function/
@@ -110,7 +96,7 @@ static void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 	c.z = a.z + (-d.z * h);
 	glm::vec3 e0 = perp(d);
 	glm::vec3 e1 = glm::cross(e0, d);
-	float angInc = 360.0 / n * (PI / 180.0f);
+	float angInc = 360.f / n * (PI / 180.f);
 
 	// calculate points around directrix
 	vector <glm::vec3> pts;
@@ -142,7 +128,7 @@ static void CreateCone(const glm::vec3 &d, const glm::vec3 &a,
 
 // function derived from tutorial at:
 // http://www.swiftless.com/tutorials/opengl/sphere.html
-// change -- make this function be called once and just copy these values over
+// change -- made this function called once and just copy these values over
 // to other spheres so that you don't recalculate this every time
 static glm::uint CreateSphere(const float& R, const float& H, const float& K, const float& Z, const int& offset) {
 	int n = 0;
@@ -239,7 +225,7 @@ inline void resize(GLFWwindow* window, int w, int h)
 }
 
 // Initialization routine.
-void setup(void) 
+void setup() 
 {
 	int i, j;
 	float initialSize;
@@ -343,7 +329,8 @@ void setup(void)
 	GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-
+	vPosLoc = loc;
+	glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
 	// enter polygon mode ONCE!
 	glPolygonMode(GL_FRONT, GL_LINE);
 	glPolygonMode(GL_BACK, GL_LINE);
@@ -366,8 +353,8 @@ int asteroidCraftCollision(const float& x, const float& z, const float& a)
 	// Check for collision with up to 4 asteroids by using the quad tree
 	vector<Location> astl;
 	
-	const float x_calc = x - 5.f * sin((PI/180.f) * a); 
-	const float z_calc = z - 5 * cos((PI/180.f) * a);
+	const float x_calc = x - 5.f * sin((PI / 180.f) * a); 
+	const float z_calc = z - 5 * cos((PI / 180.f) * a);
 	GatherAsteroidSystem(x_calc, z_calc, asteroidsQuadTree.header, astl /*OUT*/);
 	if (!astl.empty())
 	{
@@ -495,12 +482,10 @@ void drawScene(void)
 
    // Use the buffer and shader for each circle.
    glUseProgram(myShaderProgram);
-   glBindBuffer(GL_ARRAY_BUFFER, myBuffer);
 
    // Initialize the vertex position attribute from the vertex shader.
-    GLuint loc = glGetAttribLocation(myShaderProgram, "vPosition");
-    glEnableVertexAttribArray(loc);
-    glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(vPosLoc);
+	glVertexAttribPointer(vPosLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
    // Begin left viewport.
    glViewport (0, 0, width / 2.0,  height); 
@@ -516,21 +501,21 @@ void drawScene(void)
 	}
 	else
 	{
-		// Draw only asteroids in leaf squares of the quadtree that intersect the fixed frustum
+		// Draw only asteroids in leaf squares of the QuadTree that intersect the fixed frustum
 		// with apex at the origin.
 		DrawAsteroidsSystem(-5.f, -5.f, -250.f, -250.f, 250.f, -250.f, 5.f, -5.f, asteroidsQuadTree.header);
 	}
 
 	// off is white spaceship and on it red
    if (isFrustumCulled)
-	glColor3f(1.0, 0.0, 0.0);
+	glColor3f(1.f, 0.f, 0.f);
    else 
-	glColor3f(1.0, 1.0, 1.0);
+	glColor3f(1.f, 1.f, 1.f);
 
    // spacecraft moves and so we translate/rotate according to the movement
    glPushMatrix();
-   glTranslatef(xVal, 0, zVal);
-   glRotatef(angle, 0.0, 1.0, 0.0);
+   glTranslatef(xVal, 0.f, zVal);
+   glRotatef(angle, 0.f, 1.0, 0.f);
 
    glPushMatrix();
    glRotatef(-90.f, 1.f, 0.f, 0.f); // To make the spacecraft point down the $z$-axis initially.
@@ -551,23 +536,23 @@ void drawScene(void)
    glPushMatrix();
    glTranslatef(-6.f, 0.f, 0.f);
    glColor3f(1.f, 1.f, 1.f);
-   glLineWidth(2.0);
+   glLineWidth(2.f);
    glDrawArrays(GL_LINE_STRIP, line_index, LINE_VERTEX_COUNT);
-   glLineWidth(1.0);
+   glLineWidth(1.f);
    glPopMatrix();
 
    // Locate the camera at the tip of the cone and pointing in the direction of the cone.
-	const float sinDegree = sin( (PI/180.0) * angle);
-	const float cosDegree = cos( (PI/180.0) * angle);
+	const float sinDegree = sin( (PI/180.f) * angle);
+	const float cosDegree = cos( (PI/180.f) * angle);
 	lookAt(xVal - 10 * sinDegree, 
-	         0.0, 
+	         0.f, 
 			 zVal - 10 * cosDegree, 
 	         xVal - 11 * sinDegree,
-			 0.0,
+			 0.f,
              zVal - 11 * cosDegree, 
-             0.0, 
-			 1.0, 
-			 0.0);
+             0.f, 
+			 1.f, 
+			 0.f);
 
    if (!isFrustumCulled)
    {
@@ -579,22 +564,21 @@ void drawScene(void)
 	   // "carried" by the spacecraft with apex at its tip and oriented with its axis
 	   // along the spacecraft's axis.
 	   
-		const float sinAngleDeg = sin((PI / 180.0) * (45.0 + angle));
-   		const float zCosAngleDeg = cos((PI / 180.0) * (45.0 + angle));
-   		const float xSinAngleDeg = sin((PI / 180.0) * (45.0 - angle));
-   		const float cosAngleDeg = cos((PI / 180.0) * (45.0 - angle));
+		const float sinAngleDeg = sin((PI / 180.f) * (45.f + angle));
+   		const float zCosAngleDeg = cos((PI / 180.f) * (45.f + angle));
+   		const float xSinAngleDeg = sin((PI / 180.f) * (45.f - angle));
+   		const float cosAngleDeg = cos((PI / 180.f) * (45.f - angle));
 
-   		DrawAsteroidsSystem(xVal - 7.072 * sinAngleDeg,
-		   zVal - 7.072 * zCosAngleDeg,
-		   xVal - 353.6 * sinAngleDeg,
-		   zVal - 353.6 * zCosAngleDeg,
-		   xVal + 353.6 * xSinAngleDeg,
-		   zVal - 353.6 * cosAngleDeg,
-		   xVal + 7.072 * xSinAngleDeg,
-		   zVal - 7.072 * cosAngleDeg, asteroidsQuadTree.header);
+   		DrawAsteroidsSystem(xVal - 7.072f * sinAngleDeg,
+		   zVal - 7.072f * zCosAngleDeg,
+		   xVal - 353.6f * sinAngleDeg,
+		   zVal - 353.6f * zCosAngleDeg,
+		   xVal + 353.6f * xSinAngleDeg,
+		   zVal - 353.6f * cosAngleDeg,
+		   xVal + 7.072f * xSinAngleDeg,
+		   zVal - 7.072f * cosAngleDeg, asteroidsQuadTree.header);
    }
    // End right viewport.
-
 }
 
 void keyInput(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -612,26 +596,26 @@ void keyInput(GLFWwindow* window, int key, int scancode, int action, int mods)
 		}
 		break;
 	  case GLFW_KEY_LEFT: 
-		tempAngle = angle + 5.0;
+		tempAngle = angle + 5.f;
 		break;
 	  case GLFW_KEY_RIGHT: 
-		tempAngle = angle - 5.0;
+		tempAngle = angle - 5.f;
 		break;
 	  case GLFW_KEY_UP:
-		tempxVal = xVal - sin(angle * PI / 180.0);
-		tempzVal = zVal - cos(angle * PI / 180.0);
+		tempxVal = xVal - sin(angle * PI / 180.f);
+		tempzVal = zVal - cos(angle * PI / 180.f);
 		break;
 	  case GLFW_KEY_DOWN:
-		tempxVal = xVal + sin(angle * PI / 180.0);
-		tempzVal = zVal + cos(angle * PI / 180.0);
+		tempxVal = xVal + sin(angle * PI / 180.f);
+		tempzVal = zVal + cos(angle * PI / 180.f);
 		break;
 	  default:
 		break;
    }
 
   // Angle correction.
-  if (tempAngle > 360.0) tempAngle -= 360.0;
-  if (tempAngle < 0.0) tempAngle += 360.0;
+  if (tempAngle > 360.f) tempAngle -= 360.f;
+  if (tempAngle < 0.f) tempAngle += 360.f;
 
   // Move spacecraft to next position only if there will not be collision with an asteroid.
   if (!asteroidCraftCollision(tempxVal, tempzVal, tempAngle))

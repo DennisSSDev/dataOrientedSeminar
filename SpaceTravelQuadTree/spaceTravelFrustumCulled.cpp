@@ -36,8 +36,6 @@ using namespace std;
 constexpr auto WINDOW_X = 1600;
 constexpr auto WINDOW_Y = 800;
 
- double lastTime = glfwGetTime();
- int nbFrames = 0;
 
 // Globals.
 static int width, height; // Size of the OpenGL window.
@@ -480,14 +478,6 @@ void drawAsteroid(const unsigned int at)
 // Drawing routine.
 void drawScene(void)
 {
-	double currentTime = glfwGetTime();
-     nbFrames++;
-     if ( currentTime - lastTime >= 1.0 ){ // If last prinf() was more than 1 sec ago
-         // printf and reset timer
-         printf("%f ms/frame\n", 1000.0/double(nbFrames));
-         nbFrames = 0;
-         lastTime += 1.0;
-     }
    int i;
    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
